@@ -82,13 +82,35 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (pendiente de roadmap) | — | Pending |
+| INGEST-01 | Phase 1 | Pending |
+| INGEST-02 | Phase 1 | Pending |
+| INGEST-03 | Phase 1 | Pending |
+| INGEST-04 | Phase 1 | Pending |
+| PARSE-01 | Phase 2 | Pending |
+| PARSE-02 | Phase 2 | Pending |
+| PARSE-03 | Phase 2 | Pending |
+| PARSE-04 | Phase 2 | Pending |
+| CONFIRM-01 | Phase 3 | Pending |
+| CONFIRM-02 | Phase 3 | Pending |
+| CONFIRM-03 | Phase 3 | Pending |
+| CONFIRM-04 | Phase 3 | Pending |
+| CONFIRM-05 | Phase 3 | Pending |
+| CREATE-01 | Phase 3 | Pending |
+| CREATE-02 | Phase 3 | Pending |
+| CREATE-03 | Phase 3 | Pending |
+| CREATE-04 | Phase 3 | Pending |
+| NOTIFY-01 | Phase 4 | Pending |
+| NOTIFY-02 | Phase 4 | Pending |
+| NOTIFY-03 | Phase 4 | Pending |
+| HARD-01 | Phase 5 | Pending |
+| HARD-02 | Phase 5 | Pending |
+| HARD-03 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 21 total
-- Mapped to phases: 0 (roadmap pendiente)
-- Unmapped: 21 ⚠️
+- v1 requirements: 23 total (note: earlier header said 21; the listed items total 23 — all are mapped)
+- Mapped to phases: 23
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-18*
-*Last updated: 2026-06-18 after initial definition*
+*Last updated: 2026-06-18 after roadmap creation*

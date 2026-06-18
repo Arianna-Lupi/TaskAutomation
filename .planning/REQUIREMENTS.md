@@ -9,10 +9,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Ingestion (Slack inbound)
 
-- [ ] **INGEST-01**: El bot recibe eventos del canal Slack dedicado y verifica la firma HMAC de Slack sobre el body crudo
-- [ ] **INGEST-02**: El bot responde (ACK) en menos de 3s y procesa el trabajo pesado en background (waitUntil)
-- [ ] **INGEST-03**: El bot deduplica reintentos de Slack (idempotencia por event_id/message_ts) para no crear tareas duplicadas
-- [ ] **INGEST-04**: El bot solo procesa mensajes raíz de humanos del canal designado (ignora sus propios mensajes y bots — evita echo loops)
+- [x] **INGEST-01**: El bot recibe eventos del canal Slack dedicado y verifica la firma HMAC de Slack sobre el body crudo *(offline-verified; live deploy handshake pending)*
+- [x] **INGEST-02**: El bot responde (ACK) en menos de 3s y procesa el trabajo pesado en background (waitUntil) *(adapter ACK-then-waitUntil wired; live <3s timing pending)*
+- [x] **INGEST-03**: El bot deduplica reintentos de Slack (idempotencia por event_id/message_ts) para no crear tareas duplicadas
+- [x] **INGEST-04**: El bot solo procesa mensajes raíz de humanos del canal designado (ignora sus propios mensajes y bots — evita echo loops)
 
 ### Parsing (IA)
 
@@ -82,10 +82,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGEST-01 | Phase 1 | Pending |
-| INGEST-02 | Phase 1 | Pending |
-| INGEST-03 | Phase 1 | Pending |
-| INGEST-04 | Phase 1 | Pending |
+| INGEST-01 | Phase 1 | Complete (offline; live deploy pending) |
+| INGEST-02 | Phase 1 | Complete (offline; live <3s pending) |
+| INGEST-03 | Phase 1 | Complete |
+| INGEST-04 | Phase 1 | Complete |
 | PARSE-01 | Phase 2 | Pending |
 | PARSE-02 | Phase 2 | Pending |
 | PARSE-03 | Phase 2 | Pending |

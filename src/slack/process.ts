@@ -92,7 +92,10 @@ export async function processMessageEvent(
     }
 
     const first = await markEventOnce(deps.redis, event.eventId);
-    if (!first) return; // duplicate / Slack retry — already handled
+    if (!first) {
+      console.log("[slack] duplicate event, skipping", { eventId: event.eventId });
+      return; // duplicate / Slack retry — already handled
+    }
     marked = true;
 
     const { message } = event;
@@ -102,8 +105,24 @@ export async function processMessageEvent(
         botUserId: deps.botUserId,
       })
     ) {
+      const m = message as unknown as Record<string, unknown>;
+      console.log("[slack] message filtered out (not processed)", {
+        reason:
+          m.channel !== deps.env.SLACK_TASK_CHANNEL_ID
+            ? `channel mismatch (got ${String(m.channel)}, expected ${deps.env.SLACK_TASK_CHANNEL_ID})`
+            : m.subtype
+              ? `subtype=${String(m.subtype)}`
+              : m.bot_id
+                ? "bot_id present"
+                : m.user === deps.botUserId
+                  ? "own bot message"
+                  : m.thread_ts && m.thread_ts !== m.ts
+                    ? "non-root (thread reply)"
+                    : "other",
+      });
       return;
     }
+    console.log("[slack] message accepted, parsing", { eventId: event.eventId });
 
     const channel = message.channel;
     const messageTs = message.ts;
@@ -144,6 +163,12 @@ export async function processMessageEvent(
       threadTs,
       rawText: text,
     };
+    console.log("[slack] parsed + resolved, posting preview", {
+      pendingId,
+      cliente: resolved.clienteOptionId,
+      assignees: resolved.assigneeIds,
+      dueDateMs: resolved.dueDateMs,
+    });
     await putPending(deps.redis, pendingId, pending);
 
     await deps.client.chat.postMessage({
@@ -154,6 +179,7 @@ export async function processMessageEvent(
         timezone: deps.env.TEAM_TIMEZONE,
       }),
     });
+    console.log("[slack] preview posted in thread", { channel, threadTs, pendingId });
   } catch (err) {
     console.error(
       "[slack] processMessageEvent failed:",

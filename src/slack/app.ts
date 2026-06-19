@@ -127,6 +127,18 @@ export function createSlackApp(env: Env): SlackApp {
       typeof (body as { event_id?: unknown }).event_id === "string"
         ? (body as { event_id: string }).event_id
         : "";
+    const m = message as unknown as Record<string, unknown>;
+    console.log("[slack] message event received", {
+      eventId,
+      channel: m.channel,
+      user: m.user,
+      subtype: m.subtype,
+      bot_id: m.bot_id,
+      thread_ts: m.thread_ts,
+      ts: m.ts,
+      hasText: typeof m.text === "string" && m.text.length > 0,
+      expectedChannel: env.SLACK_TASK_CHANNEL_ID,
+    });
     const botUserId = await resolveBotUserId(client as unknown as AuthTestClient);
 
     await processMessageEvent(

@@ -16,6 +16,8 @@ const testEnv: Env = {
   OPENAI_MODEL: "gpt-4o-mini",
   CLICKUP_API_TOKEN: "pk-test",
   CLICKUP_LIST_ID: "901327239630",
+  CLICKUP_WEBHOOK_SECRET: "whsec-test",
+  CLICKUP_TEAM_ID: "90131720021",
 };
 
 function sign(body: string, timestamp: number, secret = SIGNING_SECRET): string {

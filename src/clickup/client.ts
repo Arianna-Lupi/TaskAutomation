@@ -1,4 +1,5 @@
 import { CLIENTE_FIELD_ID } from "../config/clients.js";
+import { createRetryingFetch, type RetryingFetchOpts } from "./retry.js";
 import {
   LINK_LOOM_FIELD_ID,
   type ClickUpTaskResult,
@@ -8,6 +9,10 @@ import {
 } from "./types.js";
 
 const BASE_URL = "https://api.clickup.com/api/v2";
+
+/** Production sleep: a real `setTimeout`. Overridden in tests for determinism. */
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export type ClickUpClient = {
   createTask(params: CreateTaskParams): Promise<ClickUpTaskResult>;
@@ -31,6 +36,15 @@ type CreateTaskBody = {
  * token is read once from the caller's env and used as the raw Authorization
  * header (ClickUp personal/OAuth tokens are NOT "Bearer " prefixed).
  *
+ * HARD-02: every HTTP call (createTask, getTask) is routed through
+ * `createRetryingFetch`, so a ClickUp 429 (honoring `Retry-After`) or 5xx is
+ * retried with capped exponential backoff + jitter, and exhaustion throws a
+ * typed `ClickUpRetryError` carrying the final status — which the HARD-01
+ * create-failure path surfaces in-thread. The `sleep`/`random` are injected
+ * (via `retry`) so the backoff is fully deterministic and instant under test;
+ * production uses a real `setTimeout`. Non-retryable responses pass straight
+ * through unchanged, so the existing client behavior is preserved.
+ *
  * createTask POSTs to /list/{listId}/task. Nullable fields are omitted from the
  * body entirely; dates are sent as epoch-ms integers paired with
  * *_date_time=false (the resolver emits day-granularity midnight-in-TZ ms).
@@ -42,8 +56,23 @@ export function createClickUpClient(deps: {
   token: string;
   listId: string;
   fetch: FetchLike;
+  /**
+   * Retry knobs for the 429/5xx backoff wrapper (HARD-02). `sleep` defaults to a
+   * real `setTimeout`; tests inject a recorder for deterministic, instant runs.
+   */
+  retry?: Partial<RetryingFetchOpts>;
 }): ClickUpClient {
-  const { token, listId, fetch } = deps;
+  const { token, listId } = deps;
+  const fetch = createRetryingFetch(deps.fetch, {
+    sleep: deps.retry?.sleep ?? defaultSleep,
+    ...(deps.retry?.maxAttempts != null
+      ? { maxAttempts: deps.retry.maxAttempts }
+      : {}),
+    ...(deps.retry?.baseDelayMs != null
+      ? { baseDelayMs: deps.retry.baseDelayMs }
+      : {}),
+    ...(deps.retry?.random != null ? { random: deps.retry.random } : {}),
+  });
 
   return {
     async createTask(params: CreateTaskParams): Promise<ClickUpTaskResult> {

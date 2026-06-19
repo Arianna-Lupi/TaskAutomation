@@ -44,9 +44,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Hardening
 
-- [ ] **HARD-01**: Errores de parseo/creación se reportan en el hilo con mensaje claro (no fallo silencioso)
-- [ ] **HARD-02**: El bot maneja rate limits (429) con backoff y deduplica redeliveries de webhook
-- [ ] **HARD-03**: Existe un kill switch por canal para desactivar el bot sin redeploy
+- [x] **HARD-01**: Errores de parseo/creación se reportan en el hilo con mensaje claro (no fallo silencioso)
+- [x] **HARD-02**: El bot maneja rate limits (429) con backoff y deduplica redeliveries de webhook
+- [x] **HARD-03**: Existe un kill switch por canal para desactivar el bot sin redeploy
 
 ## v2 Requirements
 
@@ -102,9 +102,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NOTIFY-01 | Phase 4 | Complete (offline; live registration pending) |
 | NOTIFY-02 | Phase 4 | Complete (offline; live registration pending) |
 | NOTIFY-03 | Phase 4 | Complete |
-| HARD-01 | Phase 5 | Pending |
-| HARD-02 | Phase 5 | Pending |
-| HARD-03 | Phase 5 | Pending |
+| HARD-01 | Phase 5 | Complete |
+| HARD-02 | Phase 5 | Complete (offline-verified; live 429/5xx backoff timing pending) |
+| HARD-03 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total (note: earlier header said 21; the listed items total 23 — all are mapped)
@@ -113,4 +113,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-18*
-*Last updated: 2026-06-18 — Phase 4 complete (NOTIFY-01..03; live ClickUp webhook registration deferred)*
+*Last updated: 2026-06-18 — Phase 5 complete (HARD-01..03; live 429/5xx backoff timing deferred). All v1 requirements done.*

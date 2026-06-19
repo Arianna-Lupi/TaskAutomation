@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: NL Parser + Resolver** - OpenAI turns free text into a ClickUp-ready payload with real client/member IDs and epoch-ms dates
 - [x] **Phase 3: Confirm + Create (Flow A complete)** - Threaded preview with Confirm/Edit/Cancel that creates the task and posts its link back *(offline-verified; live Slack/ClickUp pending)*
 - [x] **Phase 4: Reverse Notifications (Flow B)** - ClickUp webhook posts status/assignee changes back to the originating thread *(offline-verified; live registration pending)*
-- [ ] **Phase 5: Hardening** - Error reporting in-thread, rate-limit/redelivery handling, and a per-channel kill switch
+- [x] **Phase 5: Hardening** - Error reporting in-thread, rate-limit/redelivery handling, and a per-channel kill switch
 
 ## Phase Details
 
@@ -91,7 +91,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. A parse or creation error posts a clear message in the thread (no silent failure)
   2. ClickUp 429 responses are retried with backoff and duplicate webhook redeliveries are ignored
   3. Flipping the kill switch for the channel stops the bot from acting without any redeploy
-**Plans**: TBD
+**Plans**: 2 plans
+  - [x] 05-01-PLAN.md — ClickUp 429/5xx retry+backoff wrapper (injected clock) + reportErrorToThread helper + wire in-thread error reporting (HARD-01, HARD-02)
+  - [x] 05-02-PLAN.md — Per-channel kill switch (redis helpers + capture-path guard + ops script + README) + Slack/webhook redelivery-coverage confirmation (HARD-03, HARD-02)
 
 ## Progress
 
@@ -104,4 +106,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. NL Parser + Resolver | 3/3 | Complete (offline; live OpenAI accuracy pending) | 2026-06-18 |
 | 3. Confirm + Create (Flow A) | 4/4 | Complete (offline; live Slack/ClickUp pending) | 2026-06-18 |
 | 4. Reverse Notifications (Flow B) | 3/3 | Complete (offline; live registration pending) | 2026-06-18 |
-| 5. Hardening | 0/TBD | Not started | - |
+| 5. Hardening | 2/2 | Complete (offline; live 429/5xx backoff timing pending) | 2026-06-18 |

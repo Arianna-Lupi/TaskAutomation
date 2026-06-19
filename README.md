@@ -71,6 +71,40 @@ The script prints the new webhook `id` and `secret`. Copy the **secret** into Ve
 After that, a real status or assignee change on a bot-created task posts a Spanish
 notification into the originating Slack thread.
 
+## Kill switch (per-channel, no redeploy)
+
+Operational safety valve (HARD-03) for when the bot misbehaves in the live
+channel. The bot checks a Redis key at the very top of its capture path, so
+flipping it takes effect on the next message with **no redeploy**:
+
+- `killswitch:<channelId>` — disables the bot for that one channel.
+- `killswitch:all` — global override; disables the bot for **every** channel.
+- **Absent key = enabled** (default off). An active switch makes a captured
+  message a no-op (no parse, no preview, no spend).
+- The check **fails open**: if Redis is unreachable the bot keeps processing and
+  logs — availability over a fail-closed outage.
+
+Flip it with the bundled script (uses the same `UPSTASH_REDIS_REST_URL` /
+`UPSTASH_REDIS_REST_TOKEN` env vars; dependency-free, global `fetch` only):
+
+```bash
+node scripts/killswitch.mjs C0123ABC on    # disable the bot in channel C0123ABC
+node scripts/killswitch.mjs C0123ABC off   # re-enable it
+node scripts/killswitch.mjs all on         # disable EVERY channel (global)
+node scripts/killswitch.mjs all off        # clear the global override
+```
+
+Equivalent raw Upstash REST command (what the script does under the hood):
+
+```bash
+# ON  — disable:
+curl -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN" \
+  "$UPSTASH_REDIS_REST_URL/SET/killswitch:C0123ABC/1"
+# OFF — re-enable:
+curl -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN" \
+  "$UPSTASH_REDIS_REST_URL/DEL/killswitch:C0123ABC"
+```
+
 ## Develop
 
 ```bash

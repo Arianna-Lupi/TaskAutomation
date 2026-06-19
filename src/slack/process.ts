@@ -3,11 +3,17 @@ import {
   markEventOnce,
   clearEvent,
   putPending,
+  isKillSwitchActive,
   type RedisLike,
   type PendingTask,
 } from "../store/redis.js";
 import { buildPreviewBlocks, type Block } from "./blocks.js";
 import { parseAndResolve, type ParseAndResolveDeps } from "../parseAndResolve.js";
+import {
+  reportErrorToThread,
+  PARSE_ERROR_MESSAGE,
+  GENERIC_ERROR_MESSAGE,
+} from "./report.js";
 import type { Env } from "../config/env.js";
 
 /**
@@ -75,6 +81,16 @@ export async function processMessageEvent(
   try {
     if (!event.eventId) return;
 
+    // HARD-03: operational kill switch. Checked at the VERY top of the capture
+    // path — before markEventOnce — so an active switch consumes nothing: no
+    // dedup key, no parse spend, no preview. Default off (absent key = enabled)
+    // and fail-open (a Redis outage still processes; see isKillSwitchActive).
+    const switchChannel = event.message?.channel;
+    if (switchChannel && (await isKillSwitchActive(deps.redis, switchChannel))) {
+      console.error("[slack] kill switch active for channel", switchChannel);
+      return;
+    }
+
     const first = await markEventOnce(deps.redis, event.eventId);
     if (!first) return; // duplicate / Slack retry — already handled
     marked = true;
@@ -112,6 +128,9 @@ export async function processMessageEvent(
         "[slack] parseAndResolve failed (dedup key kept):",
         parseErr instanceof Error ? parseErr.message : String(parseErr),
       );
+      // HARD-01: surface the parse failure in-thread instead of dead silence.
+      // Best-effort — never throws — and the dedup key stays SET (no re-parse).
+      await reportErrorToThread(deps.client, channel, threadTs, PARSE_ERROR_MESSAGE);
       return; // leave `marked` true → no redelivery re-parse
     }
 
@@ -151,6 +170,15 @@ export async function processMessageEvent(
           clearErr instanceof Error ? clearErr.message : String(clearErr),
         );
       }
+    }
+    // HARD-01: a generic capture-path failure also gets a short in-thread notice
+    // so the user never sees dead silence. Derive channel/thread defensively —
+    // the outer catch must still never throw.
+    const channel = event.message?.channel;
+    const messageTs = event.message?.ts;
+    if (channel && messageTs) {
+      const threadTs = event.message?.thread_ts ?? messageTs;
+      await reportErrorToThread(deps.client, channel, threadTs, GENERIC_ERROR_MESSAGE);
     }
   }
 }

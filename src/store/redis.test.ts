@@ -10,6 +10,8 @@ import {
   deletePending,
   mapTaskToThread,
   getThreadForTask,
+  isKillSwitchActive,
+  setKillSwitch,
   type RedisLike,
   type PendingTask,
 } from "./redis.js";
@@ -228,6 +230,77 @@ describe("pending-task store", () => {
     // Simulate @upstash/redis auto-deserializing JSON into an object.
     await redis.set("pending:P2", samplePending as unknown);
     expect(await getPending(redis, "P2")).toEqual(samplePending);
+  });
+});
+
+describe("kill switch (HARD-03)", () => {
+  it("isKillSwitchActive → true when killswitch:<channelId> is present", async () => {
+    const redis = memRedis();
+    await setKillSwitch(redis, "C_LIVE", true);
+    expect(await isKillSwitchActive(redis, "C_LIVE")).toBe(true);
+  });
+
+  it("isKillSwitchActive → true when the global killswitch:all is present (per-channel absent)", async () => {
+    const redis = memRedis();
+    await redis.set("killswitch:all", 1);
+    expect(await isKillSwitchActive(redis, "C_ANY")).toBe(true);
+  });
+
+  it("isKillSwitchActive → false when neither key is present (default = enabled)", async () => {
+    const redis = memRedis();
+    expect(await isKillSwitchActive(redis, "C_LIVE")).toBe(false);
+  });
+
+  it("FAILS OPEN: a throwing get returns false (Redis down → still processes) and logs", async () => {
+    const err = new Error("redis down");
+    const redis: RedisLike = {
+      set: vi.fn().mockResolvedValue("OK"),
+      del: vi.fn().mockResolvedValue(1),
+      getdel: noopGetdel,
+      get: vi.fn().mockRejectedValue(err),
+    };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await isKillSwitchActive(redis, "C_LIVE")).toBe(false);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("checks the per-channel key with the killswitch: namespace", async () => {
+    const get = vi.fn().mockResolvedValue(null);
+    const redis: RedisLike = { set: vi.fn(), del: vi.fn(), getdel: noopGetdel, get };
+    await isKillSwitchActive(redis, "C123");
+    expect(get).toHaveBeenCalledWith("killswitch:C123");
+  });
+
+  it("setKillSwitch(..., true) persists the per-channel key (no NX, no TTL)", async () => {
+    const set = vi.fn().mockResolvedValue("OK");
+    const redis: RedisLike = { set, del: vi.fn(), getdel: noopGetdel, get: noopGet };
+    await setKillSwitch(redis, "C123", true);
+    expect(set).toHaveBeenCalledWith("killswitch:C123", 1);
+  });
+
+  it("setKillSwitch(..., false) deletes the per-channel key", async () => {
+    const del = vi.fn().mockResolvedValue(1);
+    const redis: RedisLike = { set: vi.fn(), del, getdel: noopGetdel, get: noopGet };
+    await setKillSwitch(redis, "C123", false);
+    expect(del).toHaveBeenCalledWith("killswitch:C123");
+  });
+
+  it("round-trips: set on → active, set off → inactive", async () => {
+    const redis = memRedis();
+    await setKillSwitch(redis, "C_LIVE", true);
+    expect(await isKillSwitchActive(redis, "C_LIVE")).toBe(true);
+    await setKillSwitch(redis, "C_LIVE", false);
+    expect(await isKillSwitchActive(redis, "C_LIVE")).toBe(false);
+  });
+
+  it("uses a namespace isolated from evt:/whk:/pending:/task2thread:", async () => {
+    const redis = memRedis();
+    // The same id used as an event/delivery/pending must not flip the switch.
+    await markEventOnce(redis, "shared");
+    await markWebhookDeliveryOnce(redis, "shared");
+    await putPending(redis, "shared", samplePending);
+    expect(await isKillSwitchActive(redis, "shared")).toBe(false);
   });
 });
 

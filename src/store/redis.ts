@@ -116,6 +116,67 @@ export async function clearEvent(
   await redis.del(`evt:${eventId}`);
 }
 
+// ── Phase 5: per-channel kill switch (HARD-03) ─────────────────────────────
+
+/**
+ * Kill-switch namespace, kept distinct from evt:/whk:/pending:/task2thread: so a
+ * channel id can never collide with a dedup or pending key. `killswitch:all` is
+ * the global override that disables every channel at once.
+ */
+const KILLSWITCH_PREFIX = "killswitch:";
+export const KILLSWITCH_GLOBAL_KEY = `${KILLSWITCH_PREFIX}all`;
+
+/**
+ * Operational safety valve (HARD-03): is the bot disabled for this channel?
+ *
+ * Checks `killswitch:<channelId>` first, then the global `killswitch:all` — a
+ * present (non-null) value on either means the capture path must no-op. The
+ * absence of both keys is the default (enabled), so the bot ships ON.
+ *
+ * FAIL-OPEN by design (CONTEXT > HARD-03): the switch is a single cheap GET and
+ * must never hard-block message processing. If Redis is unavailable the check
+ * logs and returns `false` (treats the bot as enabled) — availability over a
+ * fail-closed outage. The flip is set out-of-band by a trusted operator
+ * (scripts/killswitch.mjs or the Upstash console), never from message flow.
+ */
+export async function isKillSwitchActive(
+  redis: RedisLike,
+  channelId: string,
+): Promise<boolean> {
+  try {
+    const channelKey = `${KILLSWITCH_PREFIX}${channelId}`;
+    if ((await redis.get(channelKey)) != null) return true;
+    if ((await redis.get(KILLSWITCH_GLOBAL_KEY)) != null) return true;
+    return false;
+  } catch (err) {
+    // Fail open: a Redis outage must not silence the whole bot — log and process.
+    console.error(
+      "[redis] isKillSwitchActive failed — failing open (bot stays enabled):",
+      err instanceof Error ? err.message : String(err),
+    );
+    return false;
+  }
+}
+
+/**
+ * Flip the per-channel kill switch. `on` SETs `killswitch:<channelId>` to 1 with
+ * NO NX and NO TTL so it persists until explicitly cleared; `off` DELetes it.
+ * Used by scripts/killswitch.mjs and available for tests. Pass `"all"` as the
+ * channelId to toggle the global override.
+ */
+export async function setKillSwitch(
+  redis: RedisLike,
+  channelId: string,
+  on: boolean,
+): Promise<void> {
+  const key = `${KILLSWITCH_PREFIX}${channelId}`;
+  if (on) {
+    await redis.set(key, 1);
+  } else {
+    await redis.del(key);
+  }
+}
+
 // ── Phase 3: pending-task store + task↔thread map ──────────────────────────
 
 /** A captured-but-unconfirmed task awaiting the human's Confirmar/Editar/Cancelar. */

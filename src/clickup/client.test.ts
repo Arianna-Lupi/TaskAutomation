@@ -1,7 +1,37 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClickUpClient } from "./client.js";
+import { ClickUpRetryError } from "./retry.js";
 import { LINK_LOOM_FIELD_ID, type FetchLike } from "./types.js";
 import { CLIENTE_FIELD_ID } from "../config/clients.js";
+
+/** Deterministic, instant retry config: records sleeps, zero jitter, base 1ms. */
+function fakeRetry() {
+  const delays: number[] = [];
+  return {
+    delays,
+    retry: {
+      sleep: async (ms: number) => {
+        delays.push(ms);
+      },
+      baseDelayMs: 1,
+      random: () => 0,
+    },
+  };
+}
+
+/** A response-shaped object with an optional Retry-After header. */
+function response(status: number, opts: { retryAfter?: number } = {}) {
+  const body = status >= 200 && status < 300 ? { id: "t1", url: "https://app.clickup.com/t/t1" } : {};
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+    ...(opts.retryAfter != null
+      ? { headers: { get: (name: string) => (name === "Retry-After" ? String(opts.retryAfter) : null) } }
+      : {}),
+  };
+}
 
 const TOKEN = "pk_secret_token";
 const LIST_ID = "901327239630";
@@ -151,5 +181,143 @@ describe("createClickUpClient.getTask", () => {
     const fetch = okGet({ id: "t1" });
     const client = createClickUpClient({ token: TOKEN, listId: LIST_ID, fetch: fetch as unknown as FetchLike });
     await expect(client.getTask("t1")).rejects.toThrow(/name/);
+  });
+});
+
+describe("createClickUpClient — HARD-02 retry wiring", () => {
+  it("retries a 429 then succeeds on the 200 (createTask)", async () => {
+    const { delays, retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(429))
+      .mockResolvedValueOnce(response(200));
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+
+    await expect(client.createTask({ name: "T" })).resolves.toEqual({
+      id: "t1",
+      url: "https://app.clickup.com/t/t1",
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(delays).toHaveLength(1); // exactly one backoff sleep
+  });
+
+  it("does NOT retry a 5xx on createTask (POST) — surfaces it after 1 attempt (WR-01)", async () => {
+    // createTask is a non-idempotent POST: a 5xx may have landed AFTER the task
+    // was created, so replaying it could create a DUPLICATE. The wrapper must
+    // pass the 5xx straight through (the client turns it into an error) without
+    // a second attempt.
+    const { retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(503))
+      .mockResolvedValueOnce(response(200));
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    await expect(client.createTask({ name: "T" })).rejects.toThrow(/503/);
+    expect(fetch).toHaveBeenCalledTimes(1); // never replayed → no duplicate task
+  });
+
+  it("DOES retry a 5xx on getTask (GET, idempotent) then succeeds (WR-01)", async () => {
+    const { retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(503))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: "t1", name: "Recuperada" }),
+        text: async () => "",
+      });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    await expect(client.getTask("t1")).resolves.toMatchObject({ id: "t1" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws a typed ClickUpRetryError after maxAttempts of 429 (createTask)", async () => {
+    const { delays, retry } = fakeRetry();
+    const fetch = vi.fn().mockResolvedValue(response(429));
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+
+    const err = await client.createTask({ name: "T" }).catch((e) => e);
+    expect(err).toBeInstanceOf(ClickUpRetryError);
+    expect((err as ClickUpRetryError).status).toBe(429);
+    expect(fetch).toHaveBeenCalledTimes(3); // default maxAttempts
+    expect(delays).toHaveLength(2); // maxAttempts - 1 backoffs before the throw
+  });
+
+  it("honors Retry-After (seconds → ms) via the injected sleep", async () => {
+    const { delays, retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(429, { retryAfter: 2 }))
+      .mockResolvedValueOnce(response(200));
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+
+    await client.createTask({ name: "T" });
+    expect(delays).toEqual([2000]); // 2s Retry-After, not the 1ms base backoff
+  });
+
+  it("retries 429 on getTask too, then returns the task", async () => {
+    const { retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(429))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: "t9", name: "Recuperada" }),
+        text: async () => "",
+      });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    await expect(client.getTask("t9")).resolves.toMatchObject({ name: "Recuperada" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT retry a 400 (non-retryable) — surfaces immediately", async () => {
+    const { delays, retry } = fakeRetry();
+    const fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({}),
+      text: async () => "Bad Request",
+    });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    await expect(client.createTask({ name: "T" })).rejects.toThrow(/400/);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(delays).toHaveLength(0);
   });
 });

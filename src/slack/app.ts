@@ -13,6 +13,7 @@ import {
   type SlackInteractionClient,
 } from "./interactions.js";
 import { createClickUpClient } from "../clickup/client.js";
+import { createRetryingFetch } from "../clickup/retry.js";
 import { createOpenAIClient } from "../llm/openai.js";
 import { SLACK_TO_MEMBER } from "../config/members.js";
 import type { ParseAndResolveDeps } from "../parseAndResolve.js";
@@ -98,7 +99,12 @@ export function createSlackApp(env: Env): SlackApp {
     (clickup ??= createClickUpClient({
       token: env.CLICKUP_API_TOKEN,
       listId: env.CLICKUP_LIST_ID,
-      fetch: globalThis.fetch as unknown as Parameters<typeof createClickUpClient>[0]["fetch"],
+      // HARD-02: wrap the injected fetch so every createTask/getTask call gets
+      // 429 (Retry-After) + 5xx backoff with a real setTimeout-based sleep.
+      fetch: createRetryingFetch(
+        globalThis.fetch as unknown as Parameters<typeof createClickUpClient>[0]["fetch"],
+        { sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) },
+      ),
     }));
 
   let parseDeps: ParseAndResolveDeps | undefined;

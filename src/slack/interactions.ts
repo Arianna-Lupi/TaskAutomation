@@ -18,6 +18,8 @@ import {
   type EditModalView,
 } from "./modal.js";
 import type { ClickUpClient } from "../clickup/client.js";
+import { ClickUpRetryError } from "../clickup/retry.js";
+import { reportErrorToThread, createFailureMessage } from "./report.js";
 
 /**
  * Structural Slack client for the interaction handlers — only the methods we
@@ -129,7 +131,18 @@ export async function handleConfirm(
       "[slack] handleConfirm createTask failed (pending restored for retry):",
       errMsg(err),
     );
+    // CR-01: no task was created → restore the pending so the human can retry.
     await putPending(deps.redis, ref.pendingId, pending);
+    // HARD-01: tell the human the create failed (with the ClickUp status when the
+    // retry wrapper surfaced one) instead of leaving the thread silent. The
+    // pending stays recoverable above; this report is best-effort, never throws.
+    const status = err instanceof ClickUpRetryError ? err.status : undefined;
+    await reportErrorToThread(
+      deps.slack,
+      ref.channel,
+      ref.messageTs,
+      createFailureMessage(status),
+    );
     return;
   }
 

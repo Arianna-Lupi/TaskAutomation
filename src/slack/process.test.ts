@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   processMessageEvent,
+  RECEIPT_TEXT,
   type SlackClientLike,
   type ProcessDeps,
 } from "./process.js";
+import { PARSE_ERROR_MESSAGE, GENERIC_ERROR_MESSAGE } from "./report.js";
 import type { RedisLike } from "../store/redis.js";
 import type { OpenAILike } from "../llm/openai.js";
 import type { ParsedTask } from "../resolve/types.js";
@@ -164,6 +166,46 @@ describe("processMessageEvent", () => {
     expect(redis.del).not.toHaveBeenCalled();
   });
 
+  it("HARD-01: posts the Spanish parse-error notice in-thread when parseAndResolve fails", async () => {
+    const client = fakeClient();
+    const badParse: OpenAILike = {
+      chat: {
+        completions: { parse: vi.fn(async () => { throw new Error("LLM down"); }) },
+      },
+    };
+    const d = deps({
+      client,
+      parseDeps: { client: badParse, model: "gpt-4o-mini", timezone: "America/Caracas" },
+    });
+    await expect(
+      processMessageEvent(d, { eventId: "Eparsemsg", message: goodMessage }),
+    ).resolves.toBeUndefined();
+
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(1);
+    const arg = client.chat.postMessage.mock.calls[0]![0];
+    expect(arg.channel).toBe(TASK_CHANNEL);
+    expect(arg.thread_ts).toBe(goodMessage.ts);
+    expect(arg.text).toBe(PARSE_ERROR_MESSAGE);
+  });
+
+  it("HARD-01: posts the generic Spanish notice when the side-effect tail fails", async () => {
+    const client = fakeClient();
+    // First postMessage (the preview) rejects → outer catch; the second
+    // postMessage (the generic notice) succeeds.
+    client.chat.postMessage.mockRejectedValueOnce(new Error("slack 500"));
+    const d = deps({ client });
+
+    await expect(
+      processMessageEvent(d, { eventId: "Egeneric", message: goodMessage }),
+    ).resolves.toBeUndefined();
+
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(2);
+    const second = client.chat.postMessage.mock.calls[1]![0];
+    expect(second.text).toBe(GENERIC_ERROR_MESSAGE);
+    expect(second.channel).toBe(TASK_CHANNEL);
+    expect(second.thread_ts).toBe(goodMessage.ts);
+  });
+
   it("clears the dedup key on a transient postMessage failure so a redelivery re-posts", async () => {
     const redis = memRedis();
     const client = fakeClient();
@@ -174,7 +216,11 @@ describe("processMessageEvent", () => {
     expect(redis.del).toHaveBeenCalledWith("evt:Eretry");
 
     await processMessageEvent(d, { eventId: "Eretry", message: goodMessage });
-    expect(client.chat.postMessage).toHaveBeenCalledTimes(2);
+    // 1st invocation: preview post rejects (1) → HARD-01 generic notice posts (2).
+    // 2nd invocation (redelivery, dedup key was cleared): preview re-posts (3).
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(3);
+    const lastCall = client.chat.postMessage.mock.calls.at(-1)![0];
+    expect(lastCall.text).toBe(RECEIPT_TEXT);
   });
 
   it("never throws into the ack path when postMessage rejects", async () => {

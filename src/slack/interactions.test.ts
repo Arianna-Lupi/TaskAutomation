@@ -22,6 +22,7 @@ import {
 } from "./modal.js";
 import { putPending, getPending, type RedisLike, type PendingTask } from "../store/redis.js";
 import type { ClickUpClient } from "../clickup/client.js";
+import { ClickUpRetryError } from "../clickup/retry.js";
 import type { ResolvedTask } from "../resolve/types.js";
 
 function memRedis(): RedisLike {
@@ -163,6 +164,33 @@ describe("handleConfirm", () => {
     await handleConfirm(deps, ref);
     // Pending is back so the human can retry.
     expect(await getPending(redis, "PID")).toEqual(pending);
+    expect(slack.chat.update).not.toHaveBeenCalled();
+  });
+
+  it("HARD-01: a createTask failure posts a Spanish create-failure notice in-thread and re-puts the pending", async () => {
+    const redis = memRedis();
+    await putPending(redis, "PID", pending);
+    const clickup = {
+      createTask: vi.fn(async () => {
+        throw new ClickUpRetryError(429);
+      }),
+      getTask: vi.fn(async () => ({ id: "task1", name: "Tarea" })),
+    };
+    const slack = fakeSlack();
+    const deps: InteractionDeps = { redis, clickup, slack, timezone: "America/Caracas" };
+
+    await expect(handleConfirm(deps, ref)).resolves.toBeUndefined();
+
+    // Pending stays recoverable.
+    expect(await getPending(redis, "PID")).toEqual(pending);
+    // In-thread notice carries the ClickUp status surfaced by the retry wrapper.
+    expect(slack.chat.postMessage).toHaveBeenCalledTimes(1);
+    const post = slack.chat.postMessage.mock.calls[0]![0];
+    expect(post.thread_ts).toBe(ref.messageTs);
+    expect(post.channel).toBe(ref.channel);
+    expect(post.text).toContain("429");
+    expect(post.text).toContain("No pude crear la tarea");
+    // No confirmed-state update on a failed create.
     expect(slack.chat.update).not.toHaveBeenCalled();
   });
 

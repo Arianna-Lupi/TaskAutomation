@@ -8,6 +8,11 @@ import {
 } from "../store/redis.js";
 import { buildPreviewBlocks, type Block } from "./blocks.js";
 import { parseAndResolve, type ParseAndResolveDeps } from "../parseAndResolve.js";
+import {
+  reportErrorToThread,
+  PARSE_ERROR_MESSAGE,
+  GENERIC_ERROR_MESSAGE,
+} from "./report.js";
 import type { Env } from "../config/env.js";
 
 /**
@@ -112,6 +117,9 @@ export async function processMessageEvent(
         "[slack] parseAndResolve failed (dedup key kept):",
         parseErr instanceof Error ? parseErr.message : String(parseErr),
       );
+      // HARD-01: surface the parse failure in-thread instead of dead silence.
+      // Best-effort — never throws — and the dedup key stays SET (no re-parse).
+      await reportErrorToThread(deps.client, channel, threadTs, PARSE_ERROR_MESSAGE);
       return; // leave `marked` true → no redelivery re-parse
     }
 
@@ -151,6 +159,15 @@ export async function processMessageEvent(
           clearErr instanceof Error ? clearErr.message : String(clearErr),
         );
       }
+    }
+    // HARD-01: a generic capture-path failure also gets a short in-thread notice
+    // so the user never sees dead silence. Derive channel/thread defensively —
+    // the outer catch must still never throw.
+    const channel = event.message?.channel;
+    const messageTs = event.message?.ts;
+    if (channel && messageTs) {
+      const threadTs = event.message?.thread_ts ?? messageTs;
+      await reportErrorToThread(deps.client, channel, threadTs, GENERIC_ERROR_MESSAGE);
     }
   }
 }

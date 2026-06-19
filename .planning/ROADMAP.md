@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Serverless Foundation** - Slack ingress that verifies signatures, ACKs <3s, dedups, and parks state in Redis *(offline-verified; live deploy pending)*
 - [x] **Phase 2: NL Parser + Resolver** - OpenAI turns free text into a ClickUp-ready payload with real client/member IDs and epoch-ms dates
-- [ ] **Phase 3: Confirm + Create (Flow A complete)** - Threaded preview with Confirm/Edit/Cancel that creates the task and posts its link back
+- [x] **Phase 3: Confirm + Create (Flow A complete)** - Threaded preview with Confirm/Edit/Cancel that creates the task and posts its link back *(offline-verified; live Slack/ClickUp pending)*
 - [ ] **Phase 4: Reverse Notifications (Flow B)** - ClickUp webhook posts status/assignee changes back to the originating thread
 - [ ] **Phase 5: Hardening** - Error reporting in-thread, rate-limit/redelivery handling, and a per-channel kill switch
 
@@ -98,7 +98,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Serverless Foundation | 3/3 | Complete (offline; live deploy pending) | 2026-06-18 |
-| 2. NL Parser + Resolver | 0/3 | Not started | - |
-| 3. Confirm + Create (Flow A) | 0/4 | Not started | - |
+| 2. NL Parser + Resolver | 3/3 | Complete (offline; live OpenAI accuracy pending) | 2026-06-18 |
+| 3. Confirm + Create (Flow A) | 4/4 | Complete (offline; live Slack/ClickUp pending) | 2026-06-18 |
 | 4. Reverse Notifications (Flow B) | 0/TBD | Not started | - |
 | 5. Hardening | 0/TBD | Not started | - |

@@ -23,18 +23,18 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Confirmation (human gate)
 
-- [ ] **CONFIRM-01**: El bot postea un preview en el hilo del mensaje mostrando los valores ya resueltos (cliente, asignados, fechas) y marca los campos sin resolver
-- [ ] **CONFIRM-02**: El preview tiene botones Block Kit Confirmar / Editar / Cancelar
-- [ ] **CONFIRM-03**: El estado del "pending task" persiste fuera de memoria (Upstash Redis, keyed por pendingId en el valor del botón) y sobrevive cold starts
-- [ ] **CONFIRM-04**: "Editar" abre un modal con selects para corregir cliente/asignados/fechas antes de crear
-- [ ] **CONFIRM-05**: "Cancelar" descarta el pending y actualiza el mensaje; los botones se deshabilitan tras una acción
+- [x] **CONFIRM-01**: El bot postea un preview en el hilo del mensaje mostrando los valores ya resueltos (cliente, asignados, fechas) y marca los campos sin resolver
+- [x] **CONFIRM-02**: El preview tiene botones Block Kit Confirmar / Editar / Cancelar
+- [x] **CONFIRM-03**: El estado del "pending task" persiste fuera de memoria (Upstash Redis, keyed por pendingId en el valor del botón) y sobrevive cold starts
+- [x] **CONFIRM-04**: "Editar" abre un modal con selects para corregir cliente/asignados/fechas antes de crear
+- [x] **CONFIRM-05**: "Cancelar" descarta el pending y actualiza el mensaje; los botones se deshabilitan tras una acción
 
 ### Task Creation (ClickUp outbound)
 
-- [ ] **CREATE-01**: Al confirmar, el bot crea la tarea en la list destino (Task- Seo Team) con título, descripción, asignados y fechas en epoch ms
-- [ ] **CREATE-02**: El bot setea el custom field Cliente por option UUID y el campo Link/Loom cuando hay link
-- [ ] **CREATE-03**: El bot postea el link de la tarea creada de vuelta al hilo del mensaje original
-- [ ] **CREATE-04**: El bot escribe el mapeo task↔thread (taskID → channel+thread_ts) para notificaciones reversas
+- [x] **CREATE-01**: Al confirmar, el bot crea la tarea en la list destino (Task- Seo Team) con título, descripción, asignados y fechas en epoch ms
+- [x] **CREATE-02**: El bot setea el custom field Cliente por option UUID y el campo Link/Loom cuando hay link
+- [x] **CREATE-03**: El bot postea el link de la tarea creada de vuelta al hilo del mensaje original
+- [x] **CREATE-04**: El bot escribe el mapeo task↔thread (taskID → channel+thread_ts) para notificaciones reversas
 
 ### Reverse Notifications (ClickUp inbound)
 
@@ -90,15 +90,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PARSE-02 | Phase 2 | Complete |
 | PARSE-03 | Phase 2 | Complete |
 | PARSE-04 | Phase 2 | Complete |
-| CONFIRM-01 | Phase 3 | Pending |
-| CONFIRM-02 | Phase 3 | Pending |
-| CONFIRM-03 | Phase 3 | Pending |
-| CONFIRM-04 | Phase 3 | Pending |
-| CONFIRM-05 | Phase 3 | Pending |
-| CREATE-01 | Phase 3 | Pending |
-| CREATE-02 | Phase 3 | Pending |
-| CREATE-03 | Phase 3 | Pending |
-| CREATE-04 | Phase 3 | Pending |
+| CONFIRM-01 | Phase 3 | Done |
+| CONFIRM-02 | Phase 3 | Done |
+| CONFIRM-03 | Phase 3 | Done |
+| CONFIRM-04 | Phase 3 | Done |
+| CONFIRM-05 | Phase 3 | Done |
+| CREATE-01 | Phase 3 | Done |
+| CREATE-02 | Phase 3 | Done |
+| CREATE-03 | Phase 3 | Done |
+| CREATE-04 | Phase 3 | Done |
 | NOTIFY-01 | Phase 4 | Pending |
 | NOTIFY-02 | Phase 4 | Pending |
 | NOTIFY-03 | Phase 4 | Pending |

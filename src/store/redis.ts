@@ -78,6 +78,32 @@ export async function markEventOnce(
 }
 
 /**
+ * Default webhook-redelivery dedup TTL: 24h — covers ClickUp's redelivery window
+ * for a failed (non-2xx) delivery (CONTEXT > Dedup; Pitfall 7).
+ */
+export const DEFAULT_WEBHOOK_TTL_SECONDS = 86400;
+
+/**
+ * Idempotency guard for inbound ClickUp webhook deliveries. Mirrors
+ * markEventOnce's SET-NX-EX semantics but lives in a distinct "whk:" namespace
+ * so a ClickUp delivery key can never collide with a Slack "evt:" event_id.
+ *
+ * @returns true the first time this delivery key is seen (key set); false on a
+ *          redelivery (ClickUp retried — drop it so the thread is posted once).
+ */
+export async function markWebhookDeliveryOnce(
+  redis: RedisLike,
+  deliveryKey: string,
+  ttlSeconds: number = DEFAULT_WEBHOOK_TTL_SECONDS,
+): Promise<boolean> {
+  const result = await redis.set(`whk:${deliveryKey}`, 1, {
+    nx: true,
+    ex: ttlSeconds,
+  });
+  return result !== null;
+}
+
+/**
  * Release the idempotency guard for an eventId (DEL evt:<id>). Called when a
  * downstream side-effect failed *after* markEventOnce claimed the event, so the
  * next Slack redelivery of the same event_id is allowed to re-attempt instead of

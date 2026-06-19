@@ -22,6 +22,13 @@ export type FetchLike = (
   status: number;
   json(): Promise<unknown>;
   text(): Promise<string>;
+  /**
+   * Header reader, present on the real `fetch` Response (and our test fakes).
+   * Declared optional so the minimal mock may omit it; the retry wrapper reads
+   * `Retry-After` through it compile-time-safely (IN-03) instead of an
+   * unchecked cast.
+   */
+  headers?: { get(name: string): string | null };
 }>;
 
 /**

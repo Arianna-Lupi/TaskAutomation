@@ -57,10 +57,23 @@ export function resolveSpanishDate(
   if (explicit) {
     const day = Number(explicit[1]);
     const month = Number(explicit[2]);
-    const year = explicit[3] ? Number(explicit[3]) : today.year;
+    const hasYear = Boolean(explicit[3]);
+    // Expand 2-digit years to 20xx (e.g. "26" → 2026); 4-digit used as-is,
+    // so "12/07/26" no longer becomes year 0026 AD.
+    const year = hasYear
+      ? explicit[3]!.length === 2
+        ? 2000 + Number(explicit[3])
+        : Number(explicit[3])
+      : today.year;
     const dt = DateTime.fromObject({ year, month, day }, { zone: timezone });
     if (!dt.isValid) return null;
-    return dt.startOf("day").toMillis();
+    const startOfDay = dt.startOf("day");
+    // Bare dd/mm (no explicit year) rolls forward to the next future
+    // occurrence when already past, consistent with the weekday logic above.
+    if (!hasYear && startOfDay < today) {
+      return startOfDay.plus({ years: 1 }).toMillis();
+    }
+    return startOfDay.toMillis();
   }
 
   return null;

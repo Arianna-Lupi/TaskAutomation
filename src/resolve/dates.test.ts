@@ -76,6 +76,18 @@ describe("resolveSpanishDate (PARSE-04)", () => {
     expect(resolveSpanishDate("25/12/2027", NOW, ZONE)).toBe(dayMs(2027, 12, 25));
   });
 
+  it("expands a 2-digit year to 20xx (no longer year 0026 AD)", () => {
+    expect(resolveSpanishDate("12/07/26", NOW, ZONE)).toBe(dayMs(2026, 7, 12));
+    expect(resolveSpanishDate("25/12/27", NOW, ZONE)).toBe(dayMs(2027, 12, 25));
+  });
+
+  it("bare dd/mm in the past rolls forward to next year (weekday-consistent)", () => {
+    // NOW is 2026-06-18; Jan 1 already passed → next occurrence is 2027-01-01.
+    expect(resolveSpanishDate("01/01", NOW, ZONE)).toBe(dayMs(2027, 1, 1));
+    // A future dd/mm stays in the current year (regression guard).
+    expect(resolveSpanishDate("12/07", NOW, ZONE)).toBe(dayMs(2026, 7, 12));
+  });
+
   it("OFF-BY-ONE GUARD: 23:30 local (03:30 UTC next day) — 'mañana' uses the LOCAL day", () => {
     const lateNight = nowMs(2026, 6, 18, 23, 30); // 2026-06-19 03:30 UTC
     // mañana must be local June 19, NOT the UTC-shifted June 20.

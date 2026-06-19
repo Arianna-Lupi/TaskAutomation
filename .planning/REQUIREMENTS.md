@@ -38,9 +38,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Reverse Notifications (ClickUp inbound)
 
-- [ ] **NOTIFY-01**: El bot expone un endpoint webhook que verifica la firma X-Signature de ClickUp sobre el body crudo
-- [ ] **NOTIFY-02**: El bot registra y escucha taskStatusUpdated y taskAssigneeUpdated
-- [ ] **NOTIFY-03**: El bot postea cambios de estatus/asignado en el hilo correspondiente (usando el mapa task↔thread) filtrando solo transiciones relevantes
+- [x] **NOTIFY-01**: El bot expone un endpoint webhook que verifica la firma X-Signature de ClickUp sobre el body crudo *(offline-verified; live registration pending)*
+- [x] **NOTIFY-02**: El bot registra y escucha taskStatusUpdated y taskAssigneeUpdated *(handler + registration script done; live registration pending)*
+- [x] **NOTIFY-03**: El bot postea cambios de estatus/asignado en el hilo correspondiente (usando el mapa task↔thread) filtrando solo transiciones relevantes
 
 ### Hardening
 
@@ -99,9 +99,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CREATE-02 | Phase 3 | Done |
 | CREATE-03 | Phase 3 | Done |
 | CREATE-04 | Phase 3 | Done |
-| NOTIFY-01 | Phase 4 | Pending |
-| NOTIFY-02 | Phase 4 | Pending |
-| NOTIFY-03 | Phase 4 | Pending |
+| NOTIFY-01 | Phase 4 | Complete (offline; live registration pending) |
+| NOTIFY-02 | Phase 4 | Complete (offline; live registration pending) |
+| NOTIFY-03 | Phase 4 | Complete |
 | HARD-01 | Phase 5 | Pending |
 | HARD-02 | Phase 5 | Pending |
 | HARD-03 | Phase 5 | Pending |
@@ -113,4 +113,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-18*
-*Last updated: 2026-06-18 — Phase 2 complete (PARSE-01..04)*
+*Last updated: 2026-06-18 — Phase 4 complete (NOTIFY-01..03; live ClickUp webhook registration deferred)*

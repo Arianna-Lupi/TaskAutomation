@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Serverless Foundation** - Slack ingress that verifies signatures, ACKs <3s, dedups, and parks state in Redis *(offline-verified; live deploy pending)*
 - [x] **Phase 2: NL Parser + Resolver** - OpenAI turns free text into a ClickUp-ready payload with real client/member IDs and epoch-ms dates
 - [x] **Phase 3: Confirm + Create (Flow A complete)** - Threaded preview with Confirm/Edit/Cancel that creates the task and posts its link back *(offline-verified; live Slack/ClickUp pending)*
-- [ ] **Phase 4: Reverse Notifications (Flow B)** - ClickUp webhook posts status/assignee changes back to the originating thread
+- [x] **Phase 4: Reverse Notifications (Flow B)** - ClickUp webhook posts status/assignee changes back to the originating thread *(offline-verified; live registration pending)*
 - [ ] **Phase 5: Hardening** - Error reporting in-thread, rate-limit/redelivery handling, and a per-channel kill switch
 
 ## Phase Details
@@ -78,9 +78,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. The bot is registered for and receives taskStatusUpdated and taskAssigneeUpdated events
   3. A relevant status or assignee change posts a notification into the correct Slack thread via the task↔thread map, filtering out noise
 **Plans**: 3 plans
-  - [ ] 04-01-PLAN.md — Env (CLICKUP_WEBHOOK_SECRET/TEAM_ID) + raw-body X-Signature verifier (self-signed unit test) + webhook redelivery dedup helper
-  - [ ] 04-02-PLAN.md — Core Flow B logic (offline e2e): payload parse/filter, task2thread lookup, Spanish status/assignee message build + post, getTask fallback
-  - [ ] 04-03-PLAN.md — Plain /api/clickup/webhook ingress (raw-body verify→401/200→waitUntil) + one-time registration helper/README
+  - [x] 04-01-PLAN.md — Env (CLICKUP_WEBHOOK_SECRET/TEAM_ID) + raw-body X-Signature verifier (self-signed unit test) + webhook redelivery dedup helper
+  - [x] 04-02-PLAN.md — Core Flow B logic (offline e2e): payload parse/filter, task2thread lookup, Spanish status/assignee message build + post, getTask fallback
+  - [x] 04-03-PLAN.md — Plain /api/clickup/webhook ingress (raw-body verify→401/200→waitUntil) + one-time registration helper/README
 
 ### Phase 5: Hardening
 **Goal**: Production resilience for the whole bot: parse/create failures surface clearly in-thread instead of failing silently, rate limits and webhook redeliveries are handled gracefully, and the bot can be disabled per channel without a redeploy.
@@ -103,5 +103,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Serverless Foundation | 3/3 | Complete (offline; live deploy pending) | 2026-06-18 |
 | 2. NL Parser + Resolver | 3/3 | Complete (offline; live OpenAI accuracy pending) | 2026-06-18 |
 | 3. Confirm + Create (Flow A) | 4/4 | Complete (offline; live Slack/ClickUp pending) | 2026-06-18 |
-| 4. Reverse Notifications (Flow B) | 0/3 | Planned | - |
+| 4. Reverse Notifications (Flow B) | 3/3 | Complete (offline; live registration pending) | 2026-06-18 |
 | 5. Hardening | 0/TBD | Not started | - |

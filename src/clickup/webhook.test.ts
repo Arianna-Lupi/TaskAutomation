@@ -116,7 +116,7 @@ describe("processClickUpWebhook — status changes", () => {
     });
 
     expect(post).toHaveBeenCalledTimes(1);
-    const arg = post.mock.calls[0][0] as { channel: string; thread_ts: string; text: string };
+    const arg = post.mock.calls[0]?.[0] as { channel: string; thread_ts: string; text: string };
     expect(arg.channel).toBe(CHANNEL);
     expect(arg.thread_ts).toBe(THREAD);
     expect(arg.text).toBe("🔄 *Diseñar landing* cambió de estado: abierto → en progreso");
@@ -134,7 +134,7 @@ describe("processClickUpWebhook — status changes", () => {
         history_items: [{ id: "h1", field: "status", before: "open", after: "done" }],
       },
     );
-    expect((post.mock.calls[0][0] as { text: string }).text).toBe(
+    expect((post.mock.calls[0]?.[0] as { text: string }).text).toBe(
       "🔄 *T* cambió de estado: open → done",
     );
   });
@@ -172,7 +172,7 @@ describe("processClickUpWebhook — assignee changes", () => {
       },
     );
     expect(post).toHaveBeenCalledTimes(1);
-    expect((post.mock.calls[0][0] as { text: string }).text).toBe(
+    expect((post.mock.calls[0]?.[0] as { text: string }).text).toBe(
       "👤 *Revisar copy* asignados actualizados: +Miguel Pacheco / -Veronica Romero",
     );
   });
@@ -189,7 +189,7 @@ describe("processClickUpWebhook — assignee changes", () => {
         history_items: [{ id: "a1", field: "assignee_add", after: { id: 999999 } }],
       },
     );
-    expect((post.mock.calls[0][0] as { text: string }).text).toContain("+999999");
+    expect((post.mock.calls[0]?.[0] as { text: string }).text).toContain("+999999");
   });
 
   it("does NOT post when there is neither an add nor a remove", async () => {
@@ -260,7 +260,7 @@ describe("processClickUpWebhook — scoping, dedup, fallbacks", () => {
         },
       ),
     ).resolves.toBeUndefined();
-    expect((post.mock.calls[0][0] as { text: string }).text).toContain(`*${TASK}*`);
+    expect((post.mock.calls[0]?.[0] as { text: string }).text).toContain(`*${TASK}*`);
   });
 
   it("does not call getTaskName when a name is present on the payload", async () => {
@@ -278,7 +278,7 @@ describe("processClickUpWebhook — scoping, dedup, fallbacks", () => {
       } as never,
     );
     expect(getTaskName).not.toHaveBeenCalled();
-    expect((post.mock.calls[0][0] as { text: string }).text).toContain("*Desde payload*");
+    expect((post.mock.calls[0]?.[0] as { text: string }).text).toContain("*Desde payload*");
   });
 
   it("does not throw when the Slack post itself fails", async () => {

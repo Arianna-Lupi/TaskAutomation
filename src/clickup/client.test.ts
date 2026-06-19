@@ -206,7 +206,11 @@ describe("createClickUpClient — HARD-02 retry wiring", () => {
     expect(delays).toHaveLength(1); // exactly one backoff sleep
   });
 
-  it("retries a 5xx then succeeds (createTask)", async () => {
+  it("does NOT retry a 5xx on createTask (POST) — surfaces it after 1 attempt (WR-01)", async () => {
+    // createTask is a non-idempotent POST: a 5xx may have landed AFTER the task
+    // was created, so replaying it could create a DUPLICATE. The wrapper must
+    // pass the 5xx straight through (the client turns it into an error) without
+    // a second attempt.
     const { retry } = fakeRetry();
     const fetch = vi
       .fn()
@@ -218,7 +222,28 @@ describe("createClickUpClient — HARD-02 retry wiring", () => {
       fetch: fetch as unknown as FetchLike,
       retry,
     });
-    await expect(client.createTask({ name: "T" })).resolves.toMatchObject({ id: "t1" });
+    await expect(client.createTask({ name: "T" })).rejects.toThrow(/503/);
+    expect(fetch).toHaveBeenCalledTimes(1); // never replayed → no duplicate task
+  });
+
+  it("DOES retry a 5xx on getTask (GET, idempotent) then succeeds (WR-01)", async () => {
+    const { retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(503))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: "t1", name: "Recuperada" }),
+        text: async () => "",
+      });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    await expect(client.getTask("t1")).resolves.toMatchObject({ id: "t1" });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 

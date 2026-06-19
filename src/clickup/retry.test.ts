@@ -191,6 +191,80 @@ describe("createRetryingFetch", () => {
     expect(sleep.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
+  it("clamps an absurd Retry-After to 30s so it can't hang the worker (WR-02)", async () => {
+    const fetch = queuedFetch([
+      res(429, {}, { "Retry-After": "999999" }),
+      res(200),
+    ]);
+    const { sleep, delays } = fakeSleep();
+    const wrapped = createRetryingFetch(fetch as unknown as FetchLike, {
+      sleep,
+      random: () => 0,
+    });
+
+    await wrapped("https://api/x");
+    expect(delays).toEqual([30_000]);
+  });
+
+  it("does NOT retry a non-idempotent (POST) 5xx — returns it after 1 attempt (WR-01)", async () => {
+    const fetch = queuedFetch([res(503)]);
+    const { sleep } = fakeSleep();
+    const wrapped = createRetryingFetch(fetch as unknown as FetchLike, {
+      sleep,
+      random: () => 0,
+    });
+
+    const out = await wrapped("https://api/x", { method: "POST" });
+    // Passed straight through so the client surfaces it as an error; crucially
+    // it was never replayed, so the POST cannot create a duplicate task.
+    expect(out.status).toBe(503);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("DOES retry a non-idempotent (POST) 429 — rejected pre-processing, safe (WR-01)", async () => {
+    const fetch = queuedFetch([res(429, {}), res(200)]);
+    const { sleep, delays } = fakeSleep();
+    const wrapped = createRetryingFetch(fetch as unknown as FetchLike, {
+      sleep,
+      random: () => 0,
+    });
+
+    const out = await wrapped("https://api/x", { method: "POST" });
+    expect(out.status).toBe(200);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(delays).toHaveLength(1);
+  });
+
+  it("DOES retry an idempotent (GET) 5xx (WR-01)", async () => {
+    const fetch = queuedFetch([res(503), res(200)]);
+    const { sleep, delays } = fakeSleep();
+    const wrapped = createRetryingFetch(fetch as unknown as FetchLike, {
+      sleep,
+      random: () => 0,
+    });
+
+    const out = await wrapped("https://api/x", { method: "GET" });
+    expect(out.status).toBe(200);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(delays).toHaveLength(1);
+  });
+
+  it("does NOT retry a non-idempotent (POST) network rejection — rethrows after 1 attempt (WR-01)", async () => {
+    const fetch = queuedFetch([new Error("ECONNRESET"), res(200)]);
+    const { sleep } = fakeSleep();
+    const wrapped = createRetryingFetch(fetch as unknown as FetchLike, {
+      sleep,
+      random: () => 0,
+    });
+
+    await expect(
+      wrapped("https://api/x", { method: "POST" }),
+    ).rejects.toThrow("ECONNRESET");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it("passes a successful response through unchanged (ok/status/json/text)", async () => {
     const fetch = queuedFetch([res(200, { id: "abc", url: "uuu" })]);
     const { sleep } = fakeSleep();

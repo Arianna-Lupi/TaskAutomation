@@ -27,15 +27,41 @@ export type RetryingFetchOpts = {
   random?: () => number;
 };
 
-/** Read a `Retry-After` header (seconds) defensively — the minimal FetchLike has none. */
-function retryAfterMs(res: unknown): number | null {
-  const headers = (res as { headers?: { get?(name: string): string | null } })
-    .headers;
-  const raw = headers?.get?.("Retry-After");
+/**
+ * Upper bound on any honored `Retry-After` delay (WR-02). ClickUp rate-limit
+ * windows are seconds-scale; a large or garbage header value must never be able
+ * to park the worker for minutes until the platform reaps it. Anything beyond
+ * this clamps down to it.
+ */
+const MAX_RETRY_AFTER_MS = 30_000;
+
+/**
+ * Read a `Retry-After` header (seconds) defensively. `headers` is now declared
+ * (optionally) on the FetchLike response (IN-03), so the access is compile-time
+ * safe — no unchecked cast. The parsed delay is clamped to `MAX_RETRY_AFTER_MS`
+ * (WR-02) so an absurd header can't hang the worker.
+ */
+function retryAfterMs(res: Awaited<ReturnType<FetchLike>>): number | null {
+  const raw = res.headers?.get("Retry-After");
   if (raw == null) return null;
   const seconds = Number.parseInt(raw, 10);
   if (Number.isNaN(seconds) || seconds < 0) return null;
-  return seconds * 1000;
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+}
+
+/**
+ * HTTP methods whose retry is safe to perform on transient 5xx / network
+ * failures: they are idempotent, so a replay can't create a duplicate resource.
+ * Anything else (notably POST createTask) must NOT be replayed on a 5xx/network
+ * error, because the server may have already applied the write before the
+ * failure surfaced (WR-01).
+ */
+const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function isIdempotent(init?: Parameters<FetchLike>[1]): boolean {
+  // Default method for fetch is GET, which is idempotent.
+  const method = (init?.method ?? "GET").toUpperCase();
+  return IDEMPOTENT_METHODS.has(method);
 }
 
 /** Exponential backoff `base * 2^attempt` plus `random() * base` jitter. */
@@ -45,15 +71,20 @@ function backoffMs(attempt: number, base: number, random: () => number): number 
 
 /**
  * Wrap an injected `FetchLike` with bounded retry for ClickUp rate limits and
- * transient server errors (HARD-02). A response with status 429 or >= 500 is
- * retryable: on a non-final attempt the wrapper waits — honoring `Retry-After`
- * (seconds) when present, else exponential backoff + jitter — then retries. On
- * the final attempt with a still-retryable status it throws `ClickUpRetryError`
- * carrying that status. A rejected underlying fetch (network error) is retried
- * up to the cap, then the original error is rethrown. All other responses
- * (2xx and non-429 4xx) are returned unchanged. The `sleep`/`random` are
- * injected so backoff is fully deterministic and instant under test — no new
- * dependencies, just the already-injected fetch.
+ * transient server errors (HARD-02). A 429 (rate limit) is retryable for ALL
+ * methods — ClickUp rejected the request before processing it, so no write
+ * happened and a replay is safe. A 5xx or a network rejection is retried ONLY
+ * for idempotent methods (GET/HEAD/OPTIONS): for a non-idempotent request such
+ * as the `createTask` POST the write may already have landed before the failure
+ * surfaced, so replaying it could create a DUPLICATE task — those pass the 5xx
+ * straight through (the client turns it into an error) and rethrow network
+ * errors immediately (WR-01). On a retry the wrapper waits — honoring
+ * `Retry-After` (seconds, clamped to 30s per WR-02) when present, else
+ * exponential backoff + jitter. On the final attempt with a still-retryable
+ * status it throws `ClickUpRetryError` carrying that status. All other
+ * responses (2xx, non-429 4xx, and non-idempotent 5xx) are returned unchanged.
+ * The `sleep`/`random` are injected so backoff is fully deterministic and
+ * instant under test — no new dependencies, just the already-injected fetch.
  */
 export function createRetryingFetch(
   fetch: FetchLike,
@@ -68,6 +99,7 @@ export function createRetryingFetch(
 
   return async (input, init) => {
     let lastError: unknown;
+    const idempotent = isIdempotent(init);
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const isFinal = attempt === maxAttempts - 1;
@@ -76,15 +108,25 @@ export function createRetryingFetch(
       try {
         res = await fetch(input, init);
       } catch (err) {
-        // Network-level rejection: retry up to the cap, then rethrow the last.
+        // Network-level rejection. For a non-idempotent request (e.g. POST
+        // createTask) the write may already have landed before the socket
+        // broke — replaying it could create a DUPLICATE task (WR-01). So only
+        // idempotent methods (GET) retry network errors; others rethrow now.
         lastError = err;
-        if (isFinal) throw err;
+        if (isFinal || !idempotent) throw err;
         await sleep(backoffMs(attempt, baseDelayMs, random));
         continue;
       }
 
-      const retryable = res.status === 429 || res.status >= 500;
-      if (!retryable) return res; // 2xx and non-429 4xx pass straight through.
+      // 429 means ClickUp REJECTED the request before processing it, so a
+      // retry is safe for ALL methods (no write happened). A 5xx, however,
+      // may have been raised AFTER the write was applied — retrying a
+      // non-idempotent 5xx risks a duplicate, so only idempotent methods
+      // retry on 5xx (WR-01).
+      const isRateLimit = res.status === 429;
+      const isServerError = res.status >= 500;
+      const retryable = isRateLimit || (isServerError && idempotent);
+      if (!retryable) return res; // pass through: 2xx, non-429 4xx, POST-5xx.
 
       if (isFinal) throw new ClickUpRetryError(res.status);
 

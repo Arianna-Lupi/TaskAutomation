@@ -9,6 +9,8 @@ const valid = (): Record<string, string | undefined> => ({
   UPSTASH_REDIS_REST_TOKEN: "token-abc",
   TEAM_TIMEZONE: "America/Caracas",
   OPENAI_API_KEY: "sk-test",
+  CLICKUP_API_TOKEN: "pk-test",
+  CLICKUP_LIST_ID: "901327239630",
 });
 
 describe("loadEnv", () => {
@@ -21,6 +23,20 @@ describe("loadEnv", () => {
     expect(env.UPSTASH_REDIS_REST_TOKEN).toBe("token-abc");
     expect(env.TEAM_TIMEZONE).toBe("America/Caracas");
     expect(env.OPENAI_API_KEY).toBe("sk-test");
+    expect(env.CLICKUP_API_TOKEN).toBe("pk-test");
+    expect(env.CLICKUP_LIST_ID).toBe("901327239630");
+  });
+
+  it("throws an Error naming CLICKUP_API_TOKEN when it is absent", () => {
+    const src = valid();
+    delete src.CLICKUP_API_TOKEN;
+    expect(() => loadEnv(src)).toThrow(/CLICKUP_API_TOKEN/);
+  });
+
+  it("defaults CLICKUP_LIST_ID to 901327239630 when absent", () => {
+    const src = valid();
+    delete src.CLICKUP_LIST_ID;
+    expect(loadEnv(src).CLICKUP_LIST_ID).toBe("901327239630");
   });
 
   it("defaults OPENAI_MODEL to gpt-4o-mini when absent", () => {

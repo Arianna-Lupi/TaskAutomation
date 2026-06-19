@@ -20,6 +20,11 @@ const EnvSchema = z.object({
   // default (gpt-4o-mini — cheap, good Spanish; gpt-4.1-mini is the fallback).
   OPENAI_API_KEY: nonEmpty,
   OPENAI_MODEL: nonEmpty.default("gpt-4o-mini"),
+  // ClickUp REST v2 (Phase 3 Flow A — outbound task creation). The personal/OAuth
+  // token is required so a misconfigured deploy fails fast; the destination list
+  // defaults to the Task-Seo Team list (901327239630) but can be overridden.
+  CLICKUP_API_TOKEN: nonEmpty,
+  CLICKUP_LIST_ID: nonEmpty.default("901327239630"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

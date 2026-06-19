@@ -14,6 +14,8 @@ const testEnv: Env = {
   TEAM_TIMEZONE: "America/Caracas",
   OPENAI_API_KEY: "sk-test",
   OPENAI_MODEL: "gpt-4o-mini",
+  CLICKUP_API_TOKEN: "pk-test",
+  CLICKUP_LIST_ID: "901327239630",
 };
 
 function sign(body: string, timestamp: number, secret = SIGNING_SECRET): string {

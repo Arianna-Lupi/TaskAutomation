@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   markEventOnce,
+  markWebhookDeliveryOnce,
   clearEvent,
   createRedis,
   putPending,
@@ -105,6 +106,33 @@ describe("markEventOnce", () => {
     });
     expect(await markEventOnce(redis, "dup")).toBe(true);
     expect(await markEventOnce(redis, "dup")).toBe(false);
+  });
+});
+
+describe("markWebhookDeliveryOnce", () => {
+  it("returns true the first time a delivery key is seen, false on redelivery", async () => {
+    const redis = memRedis();
+    expect(await markWebhookDeliveryOnce(redis, "d1")).toBe(true);
+    expect(await markWebhookDeliveryOnce(redis, "d1")).toBe(false);
+  });
+
+  it("calls set with the 'whk:' namespace, value 1, and { nx: true, ex: 86400 } default", async () => {
+    const set = vi.fn().mockResolvedValue("OK");
+    await markWebhookDeliveryOnce(fakeRedis(set), "d2");
+    expect(set).toHaveBeenCalledWith("whk:d2", 1, { nx: true, ex: 86400 });
+  });
+
+  it("honors a custom ttl", async () => {
+    const set = vi.fn().mockResolvedValue("OK");
+    await markWebhookDeliveryOnce(fakeRedis(set), "d3", 120);
+    expect(set).toHaveBeenCalledWith("whk:d3", 1, { nx: true, ex: 120 });
+  });
+
+  it("uses a namespace isolated from the Slack 'evt:' dedup keys", async () => {
+    const redis = memRedis();
+    // Same logical id used as a Slack event AND a webhook delivery must not collide.
+    expect(await markEventOnce(redis, "shared")).toBe(true);
+    expect(await markWebhookDeliveryOnce(redis, "shared")).toBe(true);
   });
 });
 

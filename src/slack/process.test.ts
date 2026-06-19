@@ -20,6 +20,8 @@ function nxRedis(): RedisLike & {
       seen.add(key);
       return "OK";
     }),
+    get: vi.fn(async () => null),
+    getdel: vi.fn(async () => null),
     del: vi.fn(async (...keys: string[]) => {
       let removed = 0;
       for (const key of keys) {

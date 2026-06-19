@@ -48,3 +48,35 @@ export type ClickUpTaskResult = {
 
 /** The ClickUp custom-field id of the "Link/Loom" url field. */
 export const LINK_LOOM_FIELD_ID = "5a03e7cb-0af0-4179-9f05-d0620334fc08";
+
+/** The minimal slice of a GET /task/{id} response we surface for the name fallback. */
+export type GetTaskResult = {
+  id: string;
+  name: string;
+  status?: string;
+};
+
+/**
+ * One entry in a ClickUp webhook `history_items` array. The exact wire shape is
+ * a flagged research gap (04-CONTEXT > Claude's Discretion), so every field is
+ * optional and loosely typed — extraction code must shape-guard, never assert.
+ * `before`/`after` may be a primitive (status labels) or an object (assignee
+ * `{ id, username }`); we keep them `unknown`.
+ */
+export type ClickUpHistoryItem = {
+  id?: string;
+  field?: string;
+  before?: unknown;
+  after?: unknown;
+};
+
+/**
+ * A ClickUp reverse-webhook payload. Only `event` is reliably present; the rest
+ * are optional so the parser can defensively reject anything unusable.
+ */
+export type ClickUpWebhookPayload = {
+  event: string;
+  task_id?: string;
+  webhook_id?: string;
+  history_items?: ClickUpHistoryItem[];
+};

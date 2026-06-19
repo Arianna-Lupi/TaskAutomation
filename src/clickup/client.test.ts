@@ -105,3 +105,51 @@ describe("createClickUpClient.createTask", () => {
     await expect(client.createTask({ name: "T" })).rejects.not.toThrow(/pk_secret_token/);
   });
 });
+
+describe("createClickUpClient.getTask", () => {
+  function okGet(json: unknown): ReturnType<typeof vi.fn> {
+    return vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => json,
+      text: async () => JSON.stringify(json),
+    }));
+  }
+
+  it("GETs /task/{id} with the raw token and returns { id, name, status }", async () => {
+    const fetch = okGet({ id: "t9", name: "Diseñar landing", status: { status: "in progress" } });
+    const client = createClickUpClient({ token: TOKEN, listId: LIST_ID, fetch: fetch as unknown as FetchLike });
+    const result = await client.getTask("t9");
+
+    const [url, init] = fetch.mock.calls[0] as [string, { method?: string; headers: Record<string, string> }];
+    expect(url).toBe("https://api.clickup.com/api/v2/task/t9");
+    expect(init.headers.Authorization).toBe(TOKEN);
+    expect(result.id).toBe("t9");
+    expect(result.name).toBe("Diseñar landing");
+  });
+
+  it("returns name even when status is absent", async () => {
+    const fetch = okGet({ id: "t1", name: "Sin estado" });
+    const client = createClickUpClient({ token: TOKEN, listId: LIST_ID, fetch: fetch as unknown as FetchLike });
+    expect((await client.getTask("t1")).name).toBe("Sin estado");
+  });
+
+  it("throws on a non-2xx response with status + body, without leaking the token", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+      text: async () => "Task not found",
+    }));
+    const client = createClickUpClient({ token: TOKEN, listId: LIST_ID, fetch: fetch as unknown as FetchLike });
+    await expect(client.getTask("nope")).rejects.toThrow(/404/);
+    await expect(client.getTask("nope")).rejects.toThrow(/not found/);
+    await expect(client.getTask("nope")).rejects.not.toThrow(/pk_secret_token/);
+  });
+
+  it("throws when the response is missing a string name", async () => {
+    const fetch = okGet({ id: "t1" });
+    const client = createClickUpClient({ token: TOKEN, listId: LIST_ID, fetch: fetch as unknown as FetchLike });
+    await expect(client.getTask("t1")).rejects.toThrow(/name/);
+  });
+});

@@ -1,6 +1,6 @@
 import { zodResponseFormat } from "openai/helpers/zod";
 import { ParsedTaskSchema } from "./schema.js";
-import type { OpenAILike } from "./openai.js";
+import type { OpenAILike, ParseRequestBody } from "./openai.js";
 import type { ParsedTask } from "../resolve/types.js";
 
 /** Thrown when the model output is missing, a refusal, or schema-invalid. */
@@ -47,16 +47,18 @@ export async function parseTask(
 ): Promise<ParsedTask> {
   const systemPrompt = deps.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
 
+  const body: ParseRequestBody = {
+    model: deps.model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: text },
+    ],
+    response_format: zodResponseFormat(ParsedTaskSchema, "parse_task"),
+  };
+
   let completion;
   try {
-    completion = await deps.client.chat.completions.parse({
-      model: deps.model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text },
-      ],
-      response_format: zodResponseFormat(ParsedTaskSchema, "parse_task"),
-    });
+    completion = await deps.client.chat.completions.parse(body);
   } catch (cause) {
     throw new ParseError("OpenAI parse request failed", { cause });
   }

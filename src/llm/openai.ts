@@ -14,14 +14,24 @@ export type ParsedChoice = {
   };
 };
 
+/**
+ * The structured-output request body parseTask builds. Kept as documentation of
+ * the call shape; the `parse` method below accepts a looser param so the real
+ * `OpenAI` client (whose `parse` is generic over the exact response_format) and
+ * lightweight test mocks both satisfy `OpenAILike`. The concrete body is type-
+ * checked where it is constructed in parse.ts.
+ */
+export type ParseRequestBody = {
+  model: string;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  response_format: unknown;
+};
+
 export type OpenAILike = {
   chat: {
     completions: {
-      parse(body: {
-        model: string;
-        messages: Array<{ role: string; content: string }>;
-        response_format: unknown;
-      }): Promise<{ choices: ParsedChoice[] }>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      parse(body: any): Promise<{ choices: ParsedChoice[] }>;
     };
   };
 };

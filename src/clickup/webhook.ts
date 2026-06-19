@@ -68,13 +68,27 @@ export function parseWebhookPayload(
   return candidate as ClickUpWebhookPayload;
 }
 
+/**
+ * Escape Slack mrkdwn control characters in UNTRUSTED text (ClickUp task names,
+ * status labels, resolved/unresolved assignee text). Without this, a task named
+ * `<!channel>`, `<@U123>`, or `<url|text>` would trigger pings or spoofed links
+ * when posted. Order matters: `&` must be escaped first. Per Slack guidance only
+ * `&`, `<`, `>` are special in message text.
+ */
+export function escapeSlackText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 /** PURE: the Spanish status-change message. */
 export function buildStatusMessage(
   name: string,
   oldStatus: string,
   newStatus: string,
 ): string {
-  return `🔄 *${name}* cambió de estado: ${oldStatus} → ${newStatus}`;
+  return `🔄 *${escapeSlackText(name)}* cambió de estado: ${escapeSlackText(oldStatus)} → ${escapeSlackText(newStatus)}`;
 }
 
 /** PURE: the Spanish assignee-change message (+added / -removed). */
@@ -83,10 +97,10 @@ export function buildAssigneeMessage(
   addedNames: string[],
   removedNames: string[],
 ): string {
-  const added = addedNames.map((n) => `+${n}`).join(" ");
-  const removed = removedNames.map((n) => `-${n}`).join(" ");
+  const added = addedNames.map((n) => `+${escapeSlackText(n)}`).join(" ");
+  const removed = removedNames.map((n) => `-${escapeSlackText(n)}`).join(" ");
   const parts = [added, removed].filter((p) => p.length > 0).join(" / ");
-  return `👤 *${name}* asignados actualizados: ${parts}`;
+  return `👤 *${escapeSlackText(name)}* asignados actualizados: ${parts}`;
 }
 
 /**

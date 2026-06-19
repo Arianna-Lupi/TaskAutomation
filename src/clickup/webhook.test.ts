@@ -281,6 +281,23 @@ describe("processClickUpWebhook — scoping, dedup, fallbacks", () => {
     expect((post.mock.calls[0]?.[0] as { text: string }).text).toContain("*Desde payload*");
   });
 
+  it("escapes Slack-special chars in an untrusted task name (WR-01)", async () => {
+    const redis = memRedis();
+    await seedThread(redis);
+    const { slack, post } = spyPoster();
+    await processClickUpWebhook(
+      { redis, slack, getTaskName: async () => "<!channel>" },
+      {
+        event: "taskStatusUpdated",
+        task_id: TASK,
+        history_items: [{ id: "h1", field: "status", before: "a", after: "b" }],
+      },
+    );
+    const text = (post.mock.calls[0]?.[0] as { text: string }).text;
+    expect(text).toContain("&lt;!channel&gt;");
+    expect(text).not.toContain("<!channel>");
+  });
+
   it("does not throw when the Slack post itself fails", async () => {
     const redis = memRedis();
     await seedThread(redis);

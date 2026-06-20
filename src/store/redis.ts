@@ -282,3 +282,71 @@ export async function getThreadForTask(
     await redis.get(`${TASK2THREAD_PREFIX}${taskId}`),
   );
 }
+
+// ── Phase 6: dynamic-config cache (DYN-02 / DYN-05) ────────────────────────
+
+/**
+ * TTL for a cached config dataset: 10 minutes. After it expires, the next read
+ * re-fetches from ClickUp so a client/member added there appears without a
+ * redeploy. The companion `:lastgood` copy has NO TTL — it is the resilient
+ * safety net the provider falls back to when both the TTL key and a live fetch
+ * are unavailable (DYN-05).
+ */
+export const CONFIG_CACHE_TTL_SECONDS = 600;
+
+/** Namespace for every dynamic-config cache key (distinct from evt:/whk:/pending:). */
+export const CONFIG_PREFIX = "cfg:";
+
+/**
+ * Write a freshly-fetched config dataset to Redis under two keys:
+ *  - `cfg:<name>`           with a ~600s TTL (the hot cache the resolver reads)
+ *  - `cfg:<name>:lastgood`  with NO TTL (the non-expiring fallback for DYN-05)
+ *
+ * Both store JSON via JSON.stringify. Last-good is overwritten on every
+ * successful fetch so it always holds the most recent good data.
+ */
+export async function writeConfigCache<T>(
+  redis: RedisLike,
+  name: string,
+  data: T,
+  ttlSeconds: number = CONFIG_CACHE_TTL_SECONDS,
+): Promise<void> {
+  const payload = JSON.stringify(data);
+  await redis.set(`${CONFIG_PREFIX}${name}`, payload, { ex: ttlSeconds });
+  // No opts → no TTL: last-good persists until the next successful overwrite.
+  await redis.set(`${CONFIG_PREFIX}${name}:lastgood`, payload);
+}
+
+/**
+ * Read the hot config cache `cfg:<name>`. Returns the parsed object, or null on
+ * a miss/expiry. Tolerates a string OR an already-parsed object (@upstash/redis
+ * auto-deserializes JSON) via the shared coerceJson.
+ */
+export async function readConfigCache<T>(
+  redis: RedisLike,
+  name: string,
+): Promise<T | null> {
+  return coerceJson<T>(await redis.get(`${CONFIG_PREFIX}${name}`));
+}
+
+/** Read the non-expiring last-good copy `cfg:<name>:lastgood` (DYN-05 fallback). */
+export async function readConfigLastGood<T>(
+  redis: RedisLike,
+  name: string,
+): Promise<T | null> {
+  return coerceJson<T>(await redis.get(`${CONFIG_PREFIX}${name}:lastgood`));
+}
+
+/**
+ * Clear the hot TTL keys `cfg:<name>` so the next read re-fetches live, while
+ * LEAVING the `:lastgood` copies intact as the safety net (DYN-06 support for
+ * the manual refresh endpoint). No-ops on an empty name list.
+ */
+export async function clearConfigCache(
+  redis: RedisLike,
+  ...names: string[]
+): Promise<void> {
+  if (names.length === 0) return;
+  const keys = names.map((n) => `${CONFIG_PREFIX}${n}`);
+  await redis.del(...keys);
+}

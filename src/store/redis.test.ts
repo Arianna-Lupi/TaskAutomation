@@ -12,6 +12,11 @@ import {
   getThreadForTask,
   isKillSwitchActive,
   setKillSwitch,
+  writeConfigCache,
+  readConfigCache,
+  readConfigLastGood,
+  clearConfigCache,
+  CONFIG_CACHE_TTL_SECONDS,
   type RedisLike,
   type PendingTask,
 } from "./redis.js";
@@ -326,5 +331,115 @@ describe("task↔thread map", () => {
       JSON.stringify(ref),
       { ex: 2592000 },
     );
+  });
+});
+
+// ── Phase 6: dynamic-config cache (DYN-02 / DYN-05) ────────────────────────
+
+/**
+ * Map-backed RedisLike that ALSO records the per-key opts (so a test can assert
+ * the TTL'd write vs the no-TTL last-good write). Mirrors memRedis semantics.
+ */
+function memRedisWithOpts(): RedisLike & {
+  opts: Map<string, { nx?: true; ex?: number } | undefined>;
+  store: Map<string, unknown>;
+} {
+  const store = new Map<string, unknown>();
+  const opts = new Map<string, { nx?: true; ex?: number } | undefined>();
+  return {
+    store,
+    opts,
+    async set(key, value, o) {
+      if (o?.nx && store.has(key)) return null;
+      store.set(key, value);
+      opts.set(key, o);
+      return "OK";
+    },
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async getdel(key) {
+      if (!store.has(key)) return null;
+      const v = store.get(key);
+      store.delete(key);
+      return v;
+    },
+    async del(...keys) {
+      let removed = 0;
+      for (const k of keys) if (store.delete(k)) removed += 1;
+      return removed;
+    },
+  };
+}
+
+describe("writeConfigCache", () => {
+  it("writes cfg:<name> with a ~600s TTL AND cfg:<name>:lastgood with NO TTL", async () => {
+    const redis = memRedisWithOpts();
+    await writeConfigCache(redis, "clientes", { byName: { A: "uuid-a" } });
+
+    expect(redis.store.has("cfg:clientes")).toBe(true);
+    expect(redis.store.has("cfg:clientes:lastgood")).toBe(true);
+    expect(redis.opts.get("cfg:clientes")).toEqual({ ex: CONFIG_CACHE_TTL_SECONDS });
+    // last-good must have NO opts (no TTL) — the persistent safety net.
+    expect(redis.opts.get("cfg:clientes:lastgood")).toBeUndefined();
+  });
+
+  it("stores JSON that round-trips through readConfigCache/readConfigLastGood", async () => {
+    const redis = memRedisWithOpts();
+    const data = { byName: { Felipe: "u1" }, aliases: { feli: "u1" } };
+    await writeConfigCache(redis, "clientes", data);
+    expect(await readConfigCache(redis, "clientes")).toEqual(data);
+    expect(await readConfigLastGood(redis, "clientes")).toEqual(data);
+  });
+});
+
+describe("readConfigCache", () => {
+  it("returns the parsed object on a hit", async () => {
+    const redis = memRedisWithOpts();
+    await writeConfigCache(redis, "members", { byName: { X: 1 } });
+    expect(await readConfigCache(redis, "members")).toEqual({ byName: { X: 1 } });
+  });
+
+  it("returns null on a miss (absent/expired key)", async () => {
+    const redis = memRedisWithOpts();
+    expect(await readConfigCache(redis, "members")).toBeNull();
+  });
+
+  it("tolerates an already-parsed object (upstash auto-deserialize)", async () => {
+    const redis = memRedisWithOpts();
+    redis.store.set("cfg:members", { byName: { X: 1 } });
+    expect(await readConfigCache(redis, "members")).toEqual({ byName: { X: 1 } });
+  });
+});
+
+describe("readConfigLastGood", () => {
+  it("returns last-good on a hit and null on a miss", async () => {
+    const redis = memRedisWithOpts();
+    expect(await readConfigLastGood(redis, "clientes")).toBeNull();
+    await writeConfigCache(redis, "clientes", { byName: { A: "x" } });
+    expect(await readConfigLastGood(redis, "clientes")).toEqual({ byName: { A: "x" } });
+  });
+});
+
+describe("clearConfigCache", () => {
+  it("DELs only the TTL'd cfg:<name> keys, leaving last-good intact", async () => {
+    const redis = memRedisWithOpts();
+    await writeConfigCache(redis, "clientes", { a: 1 });
+    await writeConfigCache(redis, "members", { b: 2 });
+
+    await clearConfigCache(redis, "clientes", "members");
+
+    expect(redis.store.has("cfg:clientes")).toBe(false);
+    expect(redis.store.has("cfg:members")).toBe(false);
+    // The safety net survives a refresh.
+    expect(redis.store.has("cfg:clientes:lastgood")).toBe(true);
+    expect(redis.store.has("cfg:members:lastgood")).toBe(true);
+  });
+
+  it("no-ops on an empty name list", async () => {
+    const del = vi.fn().mockResolvedValue(0);
+    const redis: RedisLike = { set: vi.fn(), del, getdel: noopGetdel, get: noopGet };
+    await clearConfigCache(redis);
+    expect(del).not.toHaveBeenCalled();
   });
 });

@@ -33,6 +33,21 @@ describe("resolveSpanishDate (PARSE-04)", () => {
     expect(resolveSpanishDate("hoy", NOW, ZONE)).toBe(dayMs(2026, 6, 18));
   });
 
+  it("finds the weekday/keyword inside a longer phrase (time-of-day is ignored)", () => {
+    // NOW is Thursday 2026-06-18 → next Thursday on-or-after is the same day.
+    expect(resolveSpanishDate("jueves a las 12 del mediodia", NOW, ZONE)).toBe(
+      dayMs(2026, 6, 18),
+    );
+    // next Monday after Thursday 18 is the 22nd.
+    expect(resolveSpanishDate("para el lunes", NOW, ZONE)).toBe(dayMs(2026, 6, 22));
+    expect(resolveSpanishDate("entregar mañana por la tarde", NOW, ZONE)).toBe(
+      dayMs(2026, 6, 19),
+    );
+    expect(resolveSpanishDate("el 12/07 a las 9am", NOW, ZONE)).toBe(
+      dayMs(2026, 7, 12),
+    );
+  });
+
   it("'mañana' → next local day", () => {
     expect(resolveSpanishDate("mañana", NOW, ZONE)).toBe(dayMs(2026, 6, 19));
     // accent-insensitive

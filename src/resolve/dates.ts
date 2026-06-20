@@ -24,36 +24,42 @@ export function resolveSpanishDate(
   const norm = normalize(phrase);
   if (norm.length === 0) return null;
 
+  // Keywords are matched as WORDS ANYWHERE in the phrase (not exact-equal), so a
+  // phrase like "jueves a las 12 del mediodia" still resolves the date. Order
+  // matters: "pasado manana" before "manana"; "en N dias" before lone weekdays.
+  const has = (re: RegExp): boolean => re.test(norm);
+
   // hoy
-  if (norm === "hoy") return today.toMillis();
+  if (has(/\bhoy\b/)) return today.toMillis();
 
   // pasado manana (check before "manana")
-  if (norm === "pasado manana") return today.plus({ days: 2 }).toMillis();
+  if (has(/\bpasado\s+manana\b/)) return today.plus({ days: 2 }).toMillis();
 
   // manana
-  if (norm === "manana") return today.plus({ days: 1 }).toMillis();
+  if (has(/\bmanana\b/)) return today.plus({ days: 1 }).toMillis();
 
   // "en N dias"
-  const inDays = norm.match(/^en\s+(\d+)\s+dias?$/);
+  const inDays = norm.match(/\ben\s+(\d+)\s+dias?\b/);
   if (inDays) {
     const n = Number(inDays[1]);
     return today.plus({ days: n }).toMillis();
   }
 
-  // weekday names (strip leading articles el/este/proximo).
-  const weekday = stripArticles(norm);
-  const targetWeekday = WEEKDAYS[weekday];
-  if (targetWeekday !== undefined) {
-    let d = today;
-    // on-or-after today: advance until weekday matches.
-    while (d.weekday !== targetWeekday) {
-      d = d.plus({ days: 1 });
+  // weekday names anywhere in the phrase (articles like el/este/proximo are
+  // simply skipped by the word-boundary search).
+  for (const [name, targetWeekday] of Object.entries(WEEKDAYS)) {
+    if (has(new RegExp(`\\b${name}\\b`))) {
+      let d = today;
+      // on-or-after today: advance until weekday matches.
+      while (d.weekday !== targetWeekday) {
+        d = d.plus({ days: 1 });
+      }
+      return d.toMillis();
     }
-    return d.toMillis();
   }
 
-  // explicit dd/mm or dd/mm/yyyy
-  const explicit = norm.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  // explicit dd/mm or dd/mm/yyyy (anywhere in the phrase)
+  const explicit = norm.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (explicit) {
     const day = Number(explicit[1]);
     const month = Number(explicit[2]);
@@ -87,11 +93,6 @@ function normalize(s: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // strip combining accents
     .replace(/\s+/g, " ");
-}
-
-/** Drop leading articles used before weekday names. */
-function stripArticles(s: string): string {
-  return s.replace(/^(el|la|este|esta|proximo|proxima)\s+/, "");
 }
 
 /** Spanish weekday name → luxon weekday number (1=Mon … 7=Sun). */

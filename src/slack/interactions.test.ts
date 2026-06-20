@@ -124,7 +124,7 @@ describe("handleConfirm", () => {
     });
   });
 
-  it("writes the task↔thread map, updates to confirmed blocks, and posts the link in-thread", async () => {
+  it("writes the task↔thread map and updates the preview to confirmed blocks (no duplicate in-thread post)", async () => {
     const s = await seeded();
     await handleConfirm(s.deps, ref);
 
@@ -140,10 +140,8 @@ describe("handleConfirm", () => {
     expect(upd.ts).toBe("1700000000.000100");
     expect(JSON.stringify(upd.blocks)).toContain("https://app.clickup.com/t/task1");
 
-    expect(s.slack.chat.postMessage).toHaveBeenCalledTimes(1);
-    const post = s.slack.chat.postMessage.mock.calls[0]![0];
-    expect(post.thread_ts).toBe("1700000000.000100");
-    expect(post.text).toContain("https://app.clickup.com/t/task1");
+    // The confirmed link lives in the edited preview; no extra thread reply.
+    expect(s.slack.chat.postMessage).not.toHaveBeenCalled();
   });
 
   it("is exactly-once: a second confirm with the same pendingId does not create again", async () => {
@@ -216,8 +214,10 @@ describe("handleConfirm", () => {
     expect(clickup.createTask).toHaveBeenCalledTimes(1);
     // Point of no return: pending consumed, NOT restored.
     expect(await getPending(redis, "PID")).toBeNull();
-    // Other post-create steps still ran (best-effort continue).
-    expect(slack.chat.postMessage).toHaveBeenCalledTimes(1);
+    // Other post-create steps still ran (best-effort continue): the task↔thread
+    // map was written even though chat.update threw. No extra in-thread post.
+    expect(await getThread(redis, "task1")).not.toBeNull();
+    expect(slack.chat.postMessage).not.toHaveBeenCalled();
 
     // Second confirm: pending is gone → must NOT create again (no duplicate).
     await handleConfirm(deps, ref);

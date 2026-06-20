@@ -175,19 +175,6 @@ export async function handleConfirm(
       errMsg(err),
     );
   }
-
-  try {
-    await deps.slack.chat.postMessage({
-      channel: pending.channel,
-      thread_ts: pending.threadTs,
-      text: `✅ Tarea creada: ${result.url}`,
-    });
-  } catch (err) {
-    console.error(
-      "[slack] handleConfirm postMessage failed (task already created, not restored):",
-      errMsg(err),
-    );
-  }
 }
 
 /**

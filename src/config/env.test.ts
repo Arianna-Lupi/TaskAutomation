@@ -109,6 +109,27 @@ describe("loadEnv", () => {
     expect(loadEnv(src).TEAM_TIMEZONE).toBe("America/Caracas");
   });
 
+  it("succeeds when OPS_API_TOKEN is absent (optional, no fail-fast)", () => {
+    const src = valid();
+    delete src.OPS_API_TOKEN;
+    const env = loadEnv(src);
+    expect(env.OPS_API_TOKEN).toBeUndefined();
+  });
+
+  it("treats an empty-string OPS_API_TOKEN as disabled (undefined/empty, no throw)", () => {
+    const src = valid();
+    src.OPS_API_TOKEN = "";
+    const env = loadEnv(src);
+    // Empty trims to "" → the ops gate treats this as disabled.
+    expect(env.OPS_API_TOKEN ?? "").toBe("");
+  });
+
+  it("passes through an explicit OPS_API_TOKEN value", () => {
+    const src = valid();
+    src.OPS_API_TOKEN = "ops-secret-123";
+    expect(loadEnv(src).OPS_API_TOKEN).toBe("ops-secret-123");
+  });
+
   it("does NOT default required vars (only TEAM_TIMEZONE has a default)", () => {
     const src = valid();
     delete src.SLACK_BOT_TOKEN;

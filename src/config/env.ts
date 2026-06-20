@@ -36,6 +36,11 @@ const EnvSchema = z.object({
   // registration helper and defaults to the Task-Seo workspace (90131720021).
   CLICKUP_WEBHOOK_SECRET: nonEmpty,
   CLICKUP_TEAM_ID: nonEmpty.default("90131720021"),
+  // Ops-endpoint gate (Phase 8 SEC-04 / FIND-01). OPTIONAL with NO min-length so
+  // a missing OR empty value never trips the fail-fast Zod validation: the gate
+  // is fail-closed at the endpoint (404 when unset), not at boot. When set, the
+  // ops endpoints (diag, refresh-config) require `Authorization: Bearer <token>`.
+  OPS_API_TOKEN: z.string().trim().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

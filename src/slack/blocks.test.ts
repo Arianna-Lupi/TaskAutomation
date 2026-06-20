@@ -64,6 +64,34 @@ describe("buildPreviewBlocks", () => {
     expect(text).toContain("⚠️ Vero R.");
   });
 
+  it("escapes mrkdwn control chars in untrusted fields (no live ping/spoof)", () => {
+    const crafted: ResolvedTask = {
+      title: "<!channel>",
+      description: "ping <@U123> & escape",
+      clienteOptionId: null,
+      assigneeIds: [],
+      unresolvedAssignees: ["<!here>"],
+      startDateMs: null,
+      dueDateMs: null,
+      links: ["https://x.com/<a>"],
+    };
+    const blocks = buildPreviewBlocks("P3", crafted, { timezone: TZ });
+    const text = flatText(blocks);
+    // Title escaped — no live <!channel>.
+    expect(text).toContain("&lt;!channel&gt;");
+    expect(text).not.toContain("<!channel>");
+    // Description escaped (both <@U123> and &).
+    expect(text).toContain("&lt;@U123&gt;");
+    expect(text).toContain("&amp; escape");
+    // Link escaped.
+    expect(text).toContain("https://x.com/&lt;a&gt;");
+    // Unresolved assignee escaped but the ⚠️ marker preserved.
+    expect(text).toContain("⚠️ &lt;!here&gt;");
+    // Static Spanish labels remain intact.
+    expect(text).toContain("*Título:*");
+    expect(text).toContain("*Cliente:*");
+  });
+
   it("has Confirmar/Editar/Cancelar buttons with correct ids, styles and value=pendingId", () => {
     const blocks = buildPreviewBlocks("PID", resolved, { timezone: TZ });
     const els = buttons(blocks);

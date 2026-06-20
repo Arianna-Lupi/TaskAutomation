@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import { CLIENTS } from "../config/clients.js";
 import { MEMBERS } from "../config/members.js";
+import { escapeSlackText } from "../util/slackMrkdwn.js";
 import type { ResolvedTask } from "../resolve/types.js";
 
 /**
@@ -38,14 +39,17 @@ function formatDate(ms: number, timezone: string): string {
 
 function clienteLine(resolved: ResolvedTask): string {
   if (resolved.clienteOptionId == null) return WARN;
-  return OPTION_TO_CLIENT[resolved.clienteOptionId] ?? WARN;
+  const name = OPTION_TO_CLIENT[resolved.clienteOptionId];
+  return name != null ? escapeSlackText(name) : WARN;
 }
 
 function asignadosLine(resolved: ResolvedTask): string {
   const names = resolved.assigneeIds
     .map((id) => ID_TO_MEMBER[id])
-    .filter((n): n is string => Boolean(n));
-  const flagged = resolved.unresolvedAssignees.map((a) => `⚠️ ${a}`);
+    .filter((n): n is string => Boolean(n))
+    .map((n) => escapeSlackText(n));
+  // The ⚠️ marker is a trusted literal; only the untrusted name is escaped.
+  const flagged = resolved.unresolvedAssignees.map((a) => `⚠️ ${escapeSlackText(a)}`);
   const all = [...names, ...flagged];
   if (all.length === 0) return WARN;
   return all.join(", ");
@@ -66,18 +70,24 @@ export function buildPreviewBlocks(
   opts: { timezone: string },
 ): Block[] {
   const { timezone } = opts;
+  // Untrusted fields (title, description, links, names) are escaped so a crafted
+  // value like <!channel> or <@U123> cannot ping/spoof in the preview (FIND-07).
+  // The static labels, ⚠️ markers, formatted dates, and the _(...)_ placeholder
+  // fallbacks are trusted literals and are NOT escaped.
   const descripcion = resolved.description?.trim()
-    ? resolved.description
+    ? escapeSlackText(resolved.description)
     : "_(sin descripción)_";
   const inicio =
     resolved.startDateMs != null ? formatDate(resolved.startDateMs, timezone) : WARN;
   const entrega =
     resolved.dueDateMs != null ? formatDate(resolved.dueDateMs, timezone) : WARN;
   const links =
-    resolved.links.length > 0 ? resolved.links.join("\n") : "_(sin links)_";
+    resolved.links.length > 0
+      ? resolved.links.map((l) => escapeSlackText(l)).join("\n")
+      : "_(sin links)_";
 
   const summary = [
-    `*Título:* ${resolved.title}`,
+    `*Título:* ${escapeSlackText(resolved.title)}`,
     `*Descripción:* ${descripcion}`,
     `*Cliente:* ${clienteLine(resolved)}`,
     `*Asignados:* ${asignadosLine(resolved)}`,

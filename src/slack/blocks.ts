@@ -87,7 +87,7 @@ export function buildPreviewBlocks(
   ].join("\n");
 
   return [
-    section("*Nueva tarea — revisá antes de confirmar*"),
+    section("*Nueva tarea.* Revisa los datos antes de confirmar."),
     section(summary),
     {
       type: "actions",
@@ -119,10 +119,10 @@ export function buildPreviewBlocks(
 
 /** Terminal "✅ Tarea creada" state with the task link and NO buttons. */
 export function buildConfirmedBlocks(taskUrl: string): Block[] {
-  return [section(`✅ *Tarea creada* — <${taskUrl}|ver en ClickUp>`)];
+  return [section(`✅ *Tarea creada.* <${taskUrl}|Abrir en ClickUp>`)];
 }
 
 /** Terminal "❌ Cancelado" state with NO buttons. */
 export function buildCanceledBlocks(): Block[] {
-  return [section("❌ *Cancelado* — no se creó ninguna tarea.")];
+  return [section("❌ *Cancelada.* No se creó ninguna tarea.")];
 }

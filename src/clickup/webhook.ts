@@ -98,10 +98,14 @@ export function buildAssigneeMessage(
   addedNames: string[],
   removedNames: string[],
 ): string {
-  const added = addedNames.map((n) => `+${escapeSlackText(n)}`).join(" ");
-  const removed = removedNames.map((n) => `-${escapeSlackText(n)}`).join(" ");
-  const parts = [added, removed].filter((p) => p.length > 0).join(" / ");
-  return `👤 *${escapeSlackText(name)}* asignados actualizados: ${parts}`;
+  const segs: string[] = [];
+  if (addedNames.length > 0) {
+    segs.push(`se añadió a ${addedNames.map((n) => escapeSlackText(n)).join(", ")}`);
+  }
+  if (removedNames.length > 0) {
+    segs.push(`se quitó a ${removedNames.map((n) => escapeSlackText(n)).join(", ")}`);
+  }
+  return `👤 *${escapeSlackText(name)}*: ${segs.join("; ")}.`;
 }
 
 /**

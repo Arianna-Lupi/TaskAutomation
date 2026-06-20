@@ -60,7 +60,7 @@ export type ActionRef = {
 
 /** User-facing notice when a Confirm/Edit targets a pending that is gone. */
 const PENDING_GONE_NOTICE =
-  "⚠️ Esta tarea ya fue procesada o expiró. Reenviá el mensaje para volver a capturarla.";
+  "⚠️ Esta tarea ya se procesó o caducó. Vuelve a enviar el mensaje para capturarla de nuevo.";
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

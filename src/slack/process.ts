@@ -21,7 +21,7 @@ import type { Env } from "../config/env.js";
  * real parse→preview, but the constant is kept (as the postMessage fallback text
  * that accompanies the preview blocks for notifications/accessibility).
  */
-export const RECEIPT_TEXT = "🆕 Nueva tarea — revisá el preview";
+export const RECEIPT_TEXT = "Nueva tarea. Revisa los datos antes de confirmar.";
 
 /** Minimal structural type for the bit of the Slack Web client we use. */
 export type SlackClientLike = {

@@ -34,29 +34,31 @@ describe("reportErrorToThread", () => {
 describe("Spanish message constants", () => {
   it("PARSE_ERROR_MESSAGE is verbatim", () => {
     expect(PARSE_ERROR_MESSAGE).toBe(
-      "⚠️ No pude interpretar el mensaje. Reformúlalo o crea la tarea manualmente.",
+      "⚠️ No entendí bien el mensaje. Escríbelo de otra forma o crea la tarea a mano.",
     );
   });
 
   it("GENERIC_ERROR_MESSAGE is verbatim", () => {
-    expect(GENERIC_ERROR_MESSAGE).toBe("⚠️ Algo falló procesando tu mensaje.");
+    expect(GENERIC_ERROR_MESSAGE).toBe(
+      "⚠️ Hubo un problema al procesar el mensaje. Inténtalo de nuevo en un momento.",
+    );
   });
 
   it("createFailureMessage interpolates a numeric status", () => {
     expect(createFailureMessage(429)).toBe(
-      "⚠️ No pude crear la tarea en ClickUp (429). Intenta de nuevo.",
+      "⚠️ No se pudo crear la tarea en ClickUp (429). Inténtalo de nuevo.",
     );
   });
 
   it("createFailureMessage interpolates a string status", () => {
     expect(createFailureMessage("503")).toBe(
-      "⚠️ No pude crear la tarea en ClickUp (503). Intenta de nuevo.",
+      "⚠️ No se pudo crear la tarea en ClickUp (503). Inténtalo de nuevo.",
     );
   });
 
   it("createFailureMessage renders a sensible placeholder for a missing status", () => {
     expect(createFailureMessage(undefined)).toBe(
-      "⚠️ No pude crear la tarea en ClickUp (error). Intenta de nuevo.",
+      "⚠️ No se pudo crear la tarea en ClickUp (error). Inténtalo de nuevo.",
     );
   });
 });

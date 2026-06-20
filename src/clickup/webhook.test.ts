@@ -88,15 +88,19 @@ describe("buildStatusMessage / buildAssigneeMessage (pure)", () => {
     );
   });
 
-  it("assignee message has the 👤 prefix and +added / -removed", () => {
+  it("assignee message has the 👤 prefix and added/removed names in plain Spanish", () => {
     expect(buildAssigneeMessage("Mi tarea", ["Miguel Pacheco"], ["Veronica Romero"])).toBe(
-      "👤 *Mi tarea* asignados actualizados: +Miguel Pacheco / -Veronica Romero",
+      "👤 *Mi tarea*: se añadió a Miguel Pacheco; se quitó a Veronica Romero.",
     );
   });
 
   it("assignee message tolerates empty add or remove lists", () => {
-    expect(buildAssigneeMessage("T", ["Miguel Pacheco"], [])).toContain("+Miguel Pacheco");
-    expect(buildAssigneeMessage("T", [], ["Veronica Romero"])).toContain("-Veronica Romero");
+    expect(buildAssigneeMessage("T", ["Miguel Pacheco"], [])).toContain(
+      "se añadió a Miguel Pacheco",
+    );
+    expect(buildAssigneeMessage("T", [], ["Veronica Romero"])).toContain(
+      "se quitó a Veronica Romero",
+    );
   });
 });
 
@@ -173,7 +177,7 @@ describe("processClickUpWebhook — assignee changes", () => {
     );
     expect(post).toHaveBeenCalledTimes(1);
     expect((post.mock.calls[0]?.[0] as { text: string }).text).toBe(
-      "👤 *Revisar copy* asignados actualizados: +Miguel Pacheco / -Veronica Romero",
+      "👤 *Revisar copy*: se añadió a Miguel Pacheco; se quitó a Veronica Romero.",
     );
   });
 
@@ -189,7 +193,7 @@ describe("processClickUpWebhook — assignee changes", () => {
         history_items: [{ id: "a1", field: "assignee_add", after: { id: 999999 } }],
       },
     );
-    expect((post.mock.calls[0]?.[0] as { text: string }).text).toContain("+999999");
+    expect((post.mock.calls[0]?.[0] as { text: string }).text).toContain("se añadió a 999999");
   });
 
   it("does NOT post when there is neither an add nor a remove", async () => {

@@ -92,6 +92,6 @@ describe("terminal blocks", () => {
   it("buildCanceledBlocks has no buttons", () => {
     const blocks = buildCanceledBlocks();
     expect(blocks.some((b) => b.type === "actions")).toBe(false);
-    expect(flatText(blocks)).toContain("Cancelado");
+    expect(flatText(blocks)).toContain("Cancelada");
   });
 });

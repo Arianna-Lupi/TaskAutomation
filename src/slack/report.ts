@@ -11,10 +11,11 @@
 
 /** Spanish notice when parse/resolve fails — tells the human what to do. */
 export const PARSE_ERROR_MESSAGE =
-  "⚠️ No pude interpretar el mensaje. Reformúlalo o crea la tarea manualmente.";
+  "⚠️ No entendí bien el mensaje. Escríbelo de otra forma o crea la tarea a mano.";
 
 /** Spanish notice for an unexpected capture-path failure (no dead silence). */
-export const GENERIC_ERROR_MESSAGE = "⚠️ Algo falló procesando tu mensaje.";
+export const GENERIC_ERROR_MESSAGE =
+  "⚠️ Hubo un problema al procesar el mensaje. Inténtalo de nuevo en un momento.";
 
 /**
  * Build the ClickUp create-failure notice with the HTTP status interpolated. A
@@ -26,7 +27,7 @@ export function createFailureMessage(
 ): string {
   const shown =
     status === undefined || status === null || status === "" ? "error" : status;
-  return `⚠️ No pude crear la tarea en ClickUp (${shown}). Intenta de nuevo.`;
+  return `⚠️ No se pudo crear la tarea en ClickUp (${shown}). Inténtalo de nuevo.`;
 }
 
 /** The minimal Slack surface both client shapes share. */

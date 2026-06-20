@@ -189,7 +189,7 @@ describe("handleConfirm", () => {
     expect(post.thread_ts).toBe(ref.messageTs);
     expect(post.channel).toBe(ref.channel);
     expect(post.text).toContain("429");
-    expect(post.text).toContain("No pude crear la tarea");
+    expect(post.text).toContain("No se pudo crear la tarea");
     // No confirmed-state update on a failed create.
     expect(slack.chat.update).not.toHaveBeenCalled();
   });
@@ -228,7 +228,7 @@ describe("handleConfirm", () => {
     expect(slack.chat.postMessage).toHaveBeenCalledTimes(1);
     const post = slack.chat.postMessage.mock.calls[0]![0];
     expect(post.thread_ts).toBe(ref.messageTs);
-    expect(post.text).toContain("expiró");
+    expect(post.text).toContain("caducó");
   });
 });
 
@@ -238,7 +238,7 @@ describe("handleCancel", () => {
     await handleCancel(s.deps, ref);
     expect(await getPending(s.redis, "PID")).toBeNull();
     expect(s.slack.chat.update).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(s.slack.chat.update.mock.calls[0]![0].blocks)).toContain("Cancelado");
+    expect(JSON.stringify(s.slack.chat.update.mock.calls[0]![0].blocks)).toContain("Cancelada");
   });
 });
 
@@ -261,7 +261,7 @@ describe("handleEditOpen", () => {
     await handleEditOpen(deps, { ...ref, triggerId: "TRIG-1" });
     expect(slack.views.open).not.toHaveBeenCalled();
     expect(slack.chat.postMessage).toHaveBeenCalledTimes(1);
-    expect(slack.chat.postMessage.mock.calls[0]![0].text).toContain("expiró");
+    expect(slack.chat.postMessage.mock.calls[0]![0].text).toContain("caducó");
   });
 });
 
@@ -316,7 +316,7 @@ describe("handleEditSubmit", () => {
     await handleEditSubmit(deps, editView({ cliente: null }));
     expect(slack.chat.update).not.toHaveBeenCalled();
     expect(slack.chat.postMessage).toHaveBeenCalledTimes(1);
-    expect(slack.chat.postMessage.mock.calls[0]![0].text).toContain("expiró");
+    expect(slack.chat.postMessage.mock.calls[0]![0].text).toContain("caducó");
   });
 
   it("WR-04: aborts cleanly (no throw, no update) on malformed private_metadata", async () => {

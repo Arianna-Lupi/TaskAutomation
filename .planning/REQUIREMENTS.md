@@ -27,10 +27,10 @@
 
 ### Security Hardening (fixes)
 
-- [ ] **SEC-04**: Endurecer o retirar el endpoint `/api/slack/diag` en producción (gating fuerte, rate-limit, o gate por env para que no quede expuesto)
-- [ ] **SEC-05**: Corregir los hallazgos críticos y altos del audit (validación de entrada, headers, control de acceso, manejo de errores)
-- [ ] **SEC-06**: Garantizar que ningún secret/token se loguee ni se filtre en respuestas o cuerpos de error
-- [ ] **SEC-07**: Revisar dependencias por vulnerabilidades conocidas y actualizar las que sean críticas/altas
+- [x] **SEC-04**: Endurecer o retirar el endpoint `/api/slack/diag` en producción (gating fuerte, rate-limit, o gate por env para que no quede expuesto)
+- [x] **SEC-05**: Corregir los hallazgos críticos y altos del audit (validación de entrada, headers, control de acceso, manejo de errores)
+- [x] **SEC-06**: Garantizar que ningún secret/token se loguee ni se filtre en respuestas o cuerpos de error
+- [x] **SEC-07**: Revisar dependencias por vulnerabilidades conocidas y actualizar las que sean críticas/altas
 
 ## Future Requirements
 
@@ -59,10 +59,10 @@
 | SEC-01 | Phase 7 | Pending |
 | SEC-02 | Phase 7 | Pending |
 | SEC-03 | Phase 7 | Pending |
-| SEC-04 | Phase 8 | Pending |
-| SEC-05 | Phase 8 | Pending |
-| SEC-06 | Phase 8 | Pending |
-| SEC-07 | Phase 8 | Pending |
+| SEC-04 | Phase 8 | Done |
+| SEC-05 | Phase 8 | Done |
+| SEC-06 | Phase 8 | Done |
+| SEC-07 | Phase 8 | Done |
 
 **Coverage:**
 - v1.1 requirements: 13 total (DYN-01..06, SEC-01..07)

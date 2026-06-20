@@ -7,10 +7,10 @@ last_updated: "2026-06-19T00:00:00.000Z"
 last_activity: 2026-06-19
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 33
+  completed_phases: 3
+  total_plans: 5
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-18)
 
 **Core value:** Convertir un mensaje libre en Slack en una tarea de ClickUp correcta y completa (cliente + asignado + fechas) sin llenar formularios a mano.
-**Current focus:** v1.0 shipped (Phases 1-5). v1.1 in progress — Phase 6 (Dynamic Config from ClickUp) complete; next up Phase 7 (Security Hardening).
+**Current focus:** v1.0 shipped (Phases 1-5). v1.1 — Phase 6 (Dynamic Config) and Phase 8 (Security Hardening) complete; Phase 7 produced the audit (SECURITY.md).
 
 ## Current Position
 
-Phase: 6 — Dynamic Config from ClickUp (COMPLETE — all 3 plans executed)
-Plan: 06-03 done
-Status: Phase 6 complete — DYN-01..06 all done; 287 tests green, tsc clean
-Last activity: 2026-06-19 — Phase 6 executed (06-01/02/03), dynamic config live-with-fallback
+Phase: 8 — Security Hardening (COMPLETE — both plans executed)
+Plan: 08-02 done
+Status: Phase 8 complete — SEC-04..07 done; ops endpoints Bearer-gated + fail-closed, preview mrkdwn escaped, taskId validated, audit closed. 311 tests green (2 skipped), tsc clean.
+Last activity: 2026-06-19 — Phase 8 executed (08-01/02), surgical security hardening, all findings closed or accepted-with-rationale
 
 ## Performance Metrics
 

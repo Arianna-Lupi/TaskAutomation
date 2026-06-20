@@ -41,6 +41,24 @@ function spyPoster(): { slack: SlackPosterLike; post: ReturnType<typeof vi.fn> }
   return { slack: { chat: { postMessage: post } }, post };
 }
 
+/** Poster with a spyable reactions surface (for the status-reaction feature). */
+function spyReactionPoster(): {
+  slack: SlackPosterLike;
+  add: ReturnType<typeof vi.fn>;
+  remove: ReturnType<typeof vi.fn>;
+} {
+  const add = vi.fn().mockResolvedValue({ ok: true });
+  const remove = vi.fn().mockResolvedValue({ ok: true });
+  return {
+    slack: {
+      chat: { postMessage: vi.fn().mockResolvedValue({ ok: true }) },
+      reactions: { add, remove },
+    },
+    add,
+    remove,
+  };
+}
+
 const CHANNEL = "C_TASK";
 const THREAD = "1700000000.000100";
 const TASK = "task123";
@@ -368,5 +386,41 @@ describe("processClickUpWebhook — scoping, dedup, fallbacks", () => {
         },
       ),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("status reactions on the original message", () => {
+  const statusEvent = (next: string) => ({
+    event: "taskStatusUpdated",
+    task_id: TASK,
+    history_items: [
+      { id: "h1", field: "status", before: { status: "to do" }, after: { status: next } },
+    ],
+  });
+
+  it("in progress → removes done emoji, adds progress emoji on the thread root", async () => {
+    const redis = memRedis();
+    await seedThread(redis);
+    const { slack, add, remove } = spyReactionPoster();
+    await processClickUpWebhook({ redis, slack, getTaskName: async () => "T" }, statusEvent("in progress"));
+    expect(remove).toHaveBeenCalledWith({ channel: CHANNEL, timestamp: THREAD, name: "white_check_mark" });
+    expect(add).toHaveBeenCalledWith({ channel: CHANNEL, timestamp: THREAD, name: "hourglass_flowing_sand" });
+  });
+
+  it("complete/done → removes progress emoji, adds done emoji", async () => {
+    const redis = memRedis();
+    await seedThread(redis);
+    const { slack, add, remove } = spyReactionPoster();
+    await processClickUpWebhook({ redis, slack, getTaskName: async () => "T" }, statusEvent("complete"));
+    expect(remove).toHaveBeenCalledWith({ channel: CHANNEL, timestamp: THREAD, name: "hourglass_flowing_sand" });
+    expect(add).toHaveBeenCalledWith({ channel: CHANNEL, timestamp: THREAD, name: "white_check_mark" });
+  });
+
+  it("an unmapped status (e.g. 'to do') drives no reaction", async () => {
+    const redis = memRedis();
+    await seedThread(redis);
+    const { slack, add } = spyReactionPoster();
+    await processClickUpWebhook({ redis, slack, getTaskName: async () => "T" }, statusEvent("backlog"));
+    expect(add).not.toHaveBeenCalled();
   });
 });

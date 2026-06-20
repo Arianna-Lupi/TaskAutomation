@@ -36,7 +36,69 @@ export type SlackPosterLike = {
       text: string;
     }): Promise<unknown>;
   };
+  /**
+   * Optional reactions surface (WebClient.reactions). When present, a status
+   * change syncs an emoji reaction on the original message (progress/done).
+   * Optional so existing tests/mocks without it keep compiling.
+   */
+  reactions?: {
+    add(args: { channel: string; timestamp: string; name: string }): Promise<unknown>;
+    remove(args: { channel: string; timestamp: string; name: string }): Promise<unknown>;
+  };
 };
+
+/** Status-reaction emojis on the original message (no leading colons). */
+const PROGRESS_EMOJI = "hourglass_flowing_sand";
+const DONE_EMOJI = "white_check_mark";
+
+/** Classify a ClickUp status name into the reaction it should drive, or null. */
+function reactionForStatus(status: string): "progress" | "done" | null {
+  const s = status
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  if (/(done|complet|closed|cerrad|finaliz|terminad|listo|resuelt)/.test(s)) return "done";
+  if (/(progress|curso|proceso|haciend|doing|trabajand|desarroll)/.test(s)) return "progress";
+  return null;
+}
+
+/**
+ * Reflect the new status as an emoji reaction on the ORIGINAL message (the
+ * thread root = ref.thread_ts): in-progress → progress emoji; done → remove the
+ * progress emoji and add the done emoji. Best-effort: every call is wrapped so
+ * already_reacted / no_reaction / missing-scope errors are swallowed (never
+ * throws into the webhook path). No-op when the Slack client has no reactions
+ * surface (keeps the existing notification working).
+ */
+async function syncStatusReaction(
+  slack: SlackPosterLike,
+  channel: string,
+  timestamp: string,
+  newStatus: string,
+): Promise<void> {
+  const reactions = slack.reactions;
+  if (!reactions) return;
+  const target = reactionForStatus(newStatus);
+  if (target === null) return;
+
+  const addEmoji = target === "done" ? DONE_EMOJI : PROGRESS_EMOJI;
+  const removeEmoji = target === "done" ? PROGRESS_EMOJI : DONE_EMOJI;
+
+  try {
+    await reactions.remove({ channel, timestamp, name: removeEmoji });
+  } catch {
+    // no_reaction / not present → fine, nothing to remove.
+  }
+  try {
+    await reactions.add({ channel, timestamp, name: addEmoji });
+  } catch (err) {
+    // already_reacted is fine; log anything else (e.g. missing reactions:write).
+    const e = (err as { data?: { error?: string } })?.data?.error;
+    if (e && e !== "already_reacted") {
+      console.error("[clickup-webhook] reaction add failed:", e);
+    }
+  }
+}
 
 export type ClickUpWebhookDeps = {
   redis: RedisLike;
@@ -334,4 +396,11 @@ async function runWebhook(
     thread_ts: ref.thread_ts,
     text,
   });
+
+  // Reflect the status on the original message as an emoji reaction (progress /
+  // done). Best-effort, only for status changes. ref.thread_ts is the root
+  // message ts (the human's original Slack message).
+  if (kind === "status" && status) {
+    await syncStatusReaction(slack, ref.channel, ref.thread_ts, status.next);
+  }
 }

@@ -48,9 +48,12 @@ export const POST = async (req: Request): Promise<Response> => {
 
 /** State change requires POST (FIND-02). A GET is method-not-allowed. */
 export const GET = async (req: Request): Promise<Response> => {
+  // Gate FIRST (WR-01), matching diag.ts order: an unauthenticated caller must
+  // not learn the endpoint exists. Only an authenticated caller using the wrong
+  // method gets a 405.
   const gate = evaluateOpsAuth(env.OPS_API_TOKEN, req.headers.get("authorization"));
-  // Stay fail-closed: when the endpoint is disabled, do not reveal it exists.
   if (gate === "disabled") return new Response("not found", { status: 404 });
+  if (gate === "unauthorized") return new Response("unauthorized", { status: 401 });
   return new Response(JSON.stringify({ allow: "POST" }, null, 2), {
     status: 405,
     headers: { "content-type": "application/json", allow: "POST" },

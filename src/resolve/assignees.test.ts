@@ -81,3 +81,38 @@ describe("resolveAssignees (PARSE-03)", () => {
     });
   });
 });
+
+describe("resolveAssignees — injected config (DYN-03)", () => {
+  it("resolves a NEW member name present only in the injected config", () => {
+    const config = { byName: { "nuevo miembro": 999 }, aliases: {}, byEmail: {} };
+    expect(resolveAssignees(["Nuevo Miembro"], { config })).toEqual({
+      ids: [999],
+      unresolved: [],
+    });
+  });
+
+  it("resolves a config alias to the live member id", () => {
+    const config = { byName: { "veronica romero": 111 }, aliases: { vero: 111 }, byEmail: {} };
+    expect(resolveAssignees(["vero"], { config })).toEqual({
+      ids: [111],
+      unresolved: [],
+    });
+  });
+
+  it("keeps the Slack override tier first even with an injected config", () => {
+    const config = { byName: { "nuevo miembro": 999 }, aliases: {}, byEmail: {} };
+    const slackToMember = { U123ABC: MIGUEL };
+    expect(resolveAssignees(["U123ABC", "Nuevo Miembro"], { slackToMember, config })).toEqual({
+      ids: [MIGUEL, 999],
+      unresolved: [],
+    });
+  });
+
+  it("still guards prototype keys with an injected config", () => {
+    const config = { byName: {}, aliases: {}, byEmail: {} };
+    expect(resolveAssignees(["constructor", "toString"], { config })).toEqual({
+      ids: [],
+      unresolved: ["constructor", "toString"],
+    });
+  });
+});

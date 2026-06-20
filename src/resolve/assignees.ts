@@ -1,9 +1,5 @@
-import {
-  MEMBERS,
-  MEMBER_ALIASES,
-  SLACK_TO_MEMBER,
-  type MemberName,
-} from "../config/members.js";
+import { SLACK_TO_MEMBER } from "../config/members.js";
+import { staticMembersConfig, type MembersConfig } from "../config/provider.js";
 
 export type ResolveAssigneesResult = {
   ids: number[];
@@ -16,26 +12,33 @@ export type ResolveAssigneesOpts = {
    * the empty production default; the caller (plan 03) passes the real map.
    */
   slackToMember?: Record<string, number>;
+  /**
+   * Resolved member config (the live provider data from plan 02). When absent it
+   * defaults to the static maps via staticMembersConfig(), so existing callers
+   * and tests see identical behavior to v1.0.
+   */
+  config?: MembersConfig;
 };
 
 /**
  * Resolve each raw assignee token to a ClickUp member id. Resolution order per
- * token: the Slack→member override map, then canonical MEMBERS names
- * (case-insensitive), then MEMBER_ALIASES. Resolved ids are deduped and
- * order-stable; unmatched tokens are dropped and surfaced in `unresolved`
- * (never mapped to an invented id — Pitfall 4). Pure: no I/O.
+ * token: the Slack→member override map, then the config's canonical names
+ * (case-insensitive), then the config's alias overlay. Resolved ids are deduped
+ * and order-stable; unmatched tokens are dropped and surfaced in `unresolved`
+ * (never mapped to an invented id — Pitfall 4). Pure/sync: no I/O.
  */
 export function resolveAssignees(
   rawNames: string[],
   opts: ResolveAssigneesOpts = {},
 ): ResolveAssigneesResult {
   const slackToMember = opts.slackToMember ?? SLACK_TO_MEMBER;
+  const config = opts.config ?? staticMembersConfig();
   const ids: number[] = [];
   const seen = new Set<number>();
   const unresolved: string[] = [];
 
   for (const raw of rawNames) {
-    const id = resolveOne(raw, slackToMember);
+    const id = resolveOne(raw, slackToMember, config);
     if (id === null) {
       unresolved.push(raw);
       continue;
@@ -52,6 +55,7 @@ export function resolveAssignees(
 function resolveOne(
   raw: string,
   slackToMember: Record<string, number>,
+  config: MembersConfig,
 ): number | null {
   if (!raw) return null;
   const trimmed = raw.trim();
@@ -72,17 +76,18 @@ function resolveOne(
 
   const norm = trimmed.toLowerCase();
 
-  // 2) Canonical member name (case-insensitive). Object.keys yields only own
-  // enumerable keys, so this loop is already prototype-safe.
-  for (const name of Object.keys(MEMBERS) as MemberName[]) {
-    if (name.toLowerCase() === norm) return MEMBERS[name];
+  // 2) Canonical member name (config.byName keyed by lowercased name). Own-key
+  // guarded so an inherited prototype key can never resolve to an id.
+  if (Object.hasOwn(config.byName, norm)) {
+    const id = config.byName[norm];
+    if (id !== undefined) return id;
   }
 
-  // 3) Alias table — own-key guarded for the same reason as the Slack map.
-  const aliased = Object.hasOwn(MEMBER_ALIASES, norm)
-    ? (MEMBER_ALIASES as Record<string, MemberName>)[norm]
-    : undefined;
-  if (aliased) return MEMBERS[aliased];
+  // 3) Alias overlay — own-key guarded for the same reason as the Slack map.
+  if (Object.hasOwn(config.aliases, norm)) {
+    const id = config.aliases[norm];
+    if (id !== undefined) return id;
+  }
 
   return null;
 }

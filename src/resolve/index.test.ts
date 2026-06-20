@@ -89,4 +89,23 @@ describe("resolveTask", () => {
     const b = resolveTask(full, NOW, { timezone: ZONE });
     expect(a).toEqual(b);
   });
+
+  it("threads injected clientesConfig/membersConfig (live DYN-01/03)", () => {
+    const parsed: ParsedTask = {
+      title: "Tarea nueva",
+      description: null,
+      clienteRaw: "Nuevo Cliente SA",
+      assigneesRaw: ["Nuevo Miembro"],
+      startDatePhrase: null,
+      dueDatePhrase: null,
+      links: [],
+    };
+    const r = resolveTask(parsed, NOW, {
+      timezone: ZONE,
+      clientesConfig: { byName: { "nuevo cliente sa": "live-uuid" }, aliases: {} },
+      membersConfig: { byName: { "nuevo miembro": 777 }, aliases: {}, byEmail: {} },
+    });
+    expect(r.clienteOptionId).toBe("live-uuid");
+    expect(r.assigneeIds).toEqual([777]);
+  });
 });

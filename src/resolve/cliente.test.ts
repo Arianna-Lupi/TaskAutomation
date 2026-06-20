@@ -34,3 +34,29 @@ describe("resolveCliente (PARSE-02)", () => {
     expect(resolveCliente("valueOf")).toBeNull();
   });
 });
+
+describe("resolveCliente — injected config (DYN-01)", () => {
+  it("resolves a NEW client name present only in the injected config", () => {
+    const config = {
+      byName: { "nuevo cliente sa": "uuid-new" },
+      aliases: {},
+    };
+    expect(resolveCliente("Nuevo Cliente SA", config)).toBe("uuid-new");
+    expect(resolveCliente("nuevo cliente sa", config)).toBe("uuid-new");
+  });
+
+  it("resolves a renamed client to the config's (updated) uuid", () => {
+    const config = {
+      byName: { "felipe vergara": "renamed-uuid" },
+      aliases: { feli: "renamed-uuid" },
+    };
+    expect(resolveCliente("Felipe Vergara", config)).toBe("renamed-uuid");
+    expect(resolveCliente("feli", config)).toBe("renamed-uuid");
+  });
+
+  it("still guards prototype keys with an injected config", () => {
+    const config = { byName: {}, aliases: {} };
+    expect(resolveCliente("constructor", config)).toBeNull();
+    expect(resolveCliente("toString", config)).toBeNull();
+  });
+});

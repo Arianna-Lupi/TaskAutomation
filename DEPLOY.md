@@ -89,7 +89,13 @@ SLACK_TASK_CHANNEL_ID   = C...           (tras crear canal)
 UPSTASH_REDIS_REST_URL  = ...            (paso 4)
 UPSTASH_REDIS_REST_TOKEN = ...           (paso 4)
 CLICKUP_WEBHOOK_SECRET  = ...            (paso 6 — placeholder mientras tanto)
+OPS_API_TOKEN           = ...            (OPCIONAL — ver "Operación")
 ```
+
+> `OPS_API_TOKEN` es opcional. Dejalo sin definir y los endpoints de ops
+> (`/api/slack/diag`, `/api/admin/refresh-config`) quedan apagados (responden 404).
+> Definilo (un valor random de 32+ chars, ej `openssl rand -hex 24`) para
+> habilitar el acceso ops vía `Authorization: Bearer`.
 
 6. **Deploy.** Copiá la **URL de producción** (ej `https://task-automation-puce.vercel.app`).
 
@@ -153,6 +159,23 @@ node scripts/killswitch.mjs C0123ABC on    # apagar en ese canal
 node scripts/killswitch.mjs C0123ABC off   # reactivar
 node scripts/killswitch.mjs all on         # apagar TODO
 ```
+
+**Endpoints de ops (diag + refresh-config)** — apagados por defecto:
+
+```bash
+# Definí OPS_API_TOKEN en Vercel para encenderlos (sin él dan 404).
+# Salud del bot (solo conteos/booleanos, sin lista de canales ni host de redis):
+curl -H "Authorization: Bearer $OPS_API_TOKEN" https://<DEPLOY_URL>/api/slack/diag
+
+# Unir el bot al canal de tareas configurado (POST, único canal posible):
+curl -X POST -H "Authorization: Bearer $OPS_API_TOKEN" https://<DEPLOY_URL>/api/slack/diag
+
+# Refrescar el cache de config (POST; devuelve clearedCount):
+curl -X POST -H "Authorization: Bearer $OPS_API_TOKEN" https://<DEPLOY_URL>/api/admin/refresh-config
+```
+
+El token va siempre en el header `Authorization: Bearer`, nunca en la URL. El
+signing secret de Slack ya no se usa como llave de ops.
 
 **Troubleshooting:**
 - *Slack "Request URL not verified"*: deploy caído o `SLACK_SIGNING_SECRET` mal. Mirá Vercel → Deployments → Functions (logs).

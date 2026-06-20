@@ -119,12 +119,31 @@ How it stays fresh:
   the next message re-reads ClickUp:
 
   ```
-  GET /api/admin/refresh-config?secret=<SLACK_SIGNING_SECRET>
+  curl -X POST -H "Authorization: Bearer $OPS_API_TOKEN" \
+    https://<DEPLOY_URL>/api/admin/refresh-config
   ```
 
-  It is gated by the Slack signing secret (timing-safe), the same gate the diag
-  endpoint uses. The non-expiring "last good" copies are left in place as the
-  fallback, so a refresh never leaves the bot without config.
+  The ops endpoints are gated by an optional `OPS_API_TOKEN` env var (set it to a
+  random 32+ char value, e.g. `openssl rand -hex 24`). When it is unset, both
+  `/api/admin/refresh-config` and `/api/slack/diag` return 404, so there is no
+  ops surface until you turn it on. When it is set, every call must carry
+  `Authorization: Bearer $OPS_API_TOKEN` (timing-safe compare). The Slack signing
+  secret is no longer reused for this. The refresh is POST-only and returns a
+  `clearedCount`, not the key names. The non-expiring "last good" copies stay in
+  place as the fallback, so a refresh never leaves the bot without config.
+
+  The diag endpoint follows the same gate:
+
+  ```
+  # Health report (counts/booleans only):
+  curl -H "Authorization: Bearer $OPS_API_TOKEN" https://<DEPLOY_URL>/api/slack/diag
+
+  # Make the bot join the configured task channel (POST only):
+  curl -X POST -H "Authorization: Bearer $OPS_API_TOKEN" https://<DEPLOY_URL>/api/slack/diag
+  ```
+
+  The POST self-join only ever joins the configured `SLACK_TASK_CHANNEL_ID`; it
+  cannot be pointed at an arbitrary channel.
 
 If ClickUp or Redis is unavailable, the bot falls back to the last good cache and
 then to the static maps in the repo, so parsing never breaks.

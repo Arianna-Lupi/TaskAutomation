@@ -111,7 +111,10 @@ _Milestone v1.1 — Dynamic Config + Security Hardening:_
   3. A Slack user is matched to their ClickUp member by email (Slack `users.info` email ↔ ClickUp member email) with no hardcoded Slack IDs
   4. When ClickUp or Redis is unreachable, the bot serves the last-good cached config (or the static maps) and the parse/preview/create flow still completes instead of breaking
   5. Hitting the manual refresh/invalidate path clears the cached clients/members so the next parse reads fresh ClickUp data immediately
-**Plans**: TBD
+**Plans**: 3 plans
+  - [ ] 06-01-PLAN.md — Live ClickUp reads (getClienteOptions/getMembers via existing retry fetch) + Redis config-cache helpers (TTL + non-expiring last-good)
+  - [ ] 06-02-PLAN.md — Config provider (fetch→cache→last-good→static fallback, curated-alias overlay) + resolver provider-injection (backward-compatible static defaults)
+  - [ ] 06-03-PLAN.md — Email-based Slack→member resolution + secret-gated cache-refresh endpoint + wire provider into the live capture path
 
 ### Phase 7: Security Audit
 **Goal**: A complete, written security review of the live bot: audit every OWASP Top 10 (2021) category against the app, run a focused cybersecurity analysis of signature verification (Slack signing + ClickUp X-Signature), secrets handling, input validation, SSRF/injection risk in the ClickUp fetch path, the `/api/slack/diag` exposure, and vulnerable dependencies, and capture all findings severity-classified in `SECURITY.md` with a prioritized remediation plan. No fixes here — this phase produces the report that Phase 8 executes against.
@@ -149,6 +152,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 3. Confirm + Create (Flow A) | 4/4 | Complete (offline; live Slack/ClickUp pending) | 2026-06-18 |
 | 4. Reverse Notifications (Flow B) | 3/3 | Complete (offline; live registration pending) | 2026-06-18 |
 | 5. Hardening | 2/2 | Complete (offline; live 429/5xx backoff timing pending) | 2026-06-18 |
-| 6. Dynamic Config from ClickUp | 0/? | Not started | - |
+| 6. Dynamic Config from ClickUp | 0/3 | Planned | - |
 | 7. Security Audit | 0/? | Not started | - |
 | 8. Security Hardening | 0/? | Not started | - |
+</content>

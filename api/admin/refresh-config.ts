@@ -1,50 +1,58 @@
-import crypto from "node:crypto";
 import { loadEnv } from "../../src/config/env.js";
 import { createRedis } from "../../src/store/redis.js";
+import { evaluateOpsAuth } from "../../src/ops/auth.js";
 
 /**
- * Manual dynamic-config cache refresh (DYN-06).
+ * Manual dynamic-config cache refresh (DYN-06), Phase 8 hardened.
  *
- *   GET /api/admin/refresh-config?secret=<SLACK_SIGNING_SECRET>
+ *   POST /api/admin/refresh-config
+ *     Authorization: Bearer <OPS_API_TOKEN>
  *     → deletes the hot cfg:* TTL cache keys (cfg:clientes, cfg:members,
  *       cfg:slackmap:*) so the next parse re-fetches live config from ClickUp.
- *       The cfg:*:lastgood keys are LEFT intact (the DYN-05 safety net), exactly
- *       like clearConfigCache in src/store/redis.ts.
+ *       The cfg:*:lastgood keys are LEFT intact (the DYN-05 safety net).
  *
- * Gated by the Slack signing secret in the query (timing-safe), reusing the
- * exact safeEqual pattern from api/slack/diag.ts so it is not world-callable.
- * (Phase 8 will harden/gate this and diag further.) The secret is never logged.
+ * Gating (FIND-01/02/03):
+ *   - Fail-closed: when OPS_API_TOKEN is unset the endpoint returns 404.
+ *   - When set it requires `Authorization: Bearer <OPS_API_TOKEN>` (timing-safe).
+ *   - State change requires POST; a GET returns 405.
+ *   - The response is a count, not the cleared key names (reduced disclosure).
+ *   - The token/secret is never logged or returned.
  */
 const env = loadEnv();
 
-function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ab, bb);
-}
-
-export const GET = async (req: Request): Promise<Response> => {
-  const url = new URL(req.url);
-  const secret = url.searchParams.get("secret") ?? "";
-  if (!safeEqual(secret, env.SLACK_SIGNING_SECRET)) {
-    return new Response("unauthorized", { status: 401 });
-  }
-
+async function clearHotConfigCache(): Promise<number> {
   const redis = createRedis(env);
-
   // List every dynamic-config key, then keep only the hot TTL keys (drop the
   // :lastgood safety-net copies). Guard the empty-list case so del() isn't
   // called with no args.
   const allKeys = (await redis.keys("cfg:*")) as string[];
   const toClear = allKeys.filter((k) => !k.endsWith(":lastgood"));
-
   if (toClear.length > 0) {
     await redis.del(...toClear);
   }
+  return toClear.length;
+}
 
-  return new Response(JSON.stringify({ cleared: toClear }, null, 2), {
+export const POST = async (req: Request): Promise<Response> => {
+  const gate = evaluateOpsAuth(env.OPS_API_TOKEN, req.headers.get("authorization"));
+  if (gate === "disabled") return new Response("not found", { status: 404 });
+  if (gate === "unauthorized") return new Response("unauthorized", { status: 401 });
+
+  const clearedCount = await clearHotConfigCache();
+
+  return new Response(JSON.stringify({ clearedCount }, null, 2), {
     status: 200,
     headers: { "content-type": "application/json" },
+  });
+};
+
+/** State change requires POST (FIND-02). A GET is method-not-allowed. */
+export const GET = async (req: Request): Promise<Response> => {
+  const gate = evaluateOpsAuth(env.OPS_API_TOKEN, req.headers.get("authorization"));
+  // Stay fail-closed: when the endpoint is disabled, do not reveal it exists.
+  if (gate === "disabled") return new Response("not found", { status: 404 });
+  return new Response(JSON.stringify({ allow: "POST" }, null, 2), {
+    status: 405,
+    headers: { "content-type": "application/json", allow: "POST" },
   });
 };

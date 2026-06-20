@@ -56,6 +56,8 @@ function fakeClickup(
   return {
     createTask: vi.fn(async () => result),
     getTask: vi.fn(async () => ({ id: result.id, name: "Tarea" })),
+    getClienteOptions: vi.fn(async () => []),
+    getMembers: vi.fn(async () => []),
   };
 }
 
@@ -157,6 +159,8 @@ describe("handleConfirm", () => {
     const clickup = {
       createTask: vi.fn(async () => { throw new Error("ClickUp 500"); }),
       getTask: vi.fn(async () => ({ id: "task1", name: "Tarea" })),
+      getClienteOptions: vi.fn(async () => []),
+      getMembers: vi.fn(async () => []),
     };
     const slack = fakeSlack();
     const deps: InteractionDeps = { redis, clickup, slack, timezone: "America/Caracas" };
@@ -175,6 +179,8 @@ describe("handleConfirm", () => {
         throw new ClickUpRetryError(429);
       }),
       getTask: vi.fn(async () => ({ id: "task1", name: "Tarea" })),
+      getClienteOptions: vi.fn(async () => []),
+      getMembers: vi.fn(async () => []),
     };
     const slack = fakeSlack();
     const deps: InteractionDeps = { redis, clickup, slack, timezone: "America/Caracas" };

@@ -87,3 +87,57 @@ export type ClickUpWebhookPayload = {
   webhook_id?: string;
   history_items?: ClickUpHistoryItem[];
 };
+
+// ── Phase 6: dynamic-config live reads (DYN-01 / DYN-03) ───────────────────
+
+/**
+ * One Cliente dropdown option read live from ClickUp: the canonical name plus
+ * the option UUID the resolver writes to the custom field (DYN-01).
+ */
+export type ClienteOption = {
+  id: string;
+  name: string;
+};
+
+/**
+ * One ClickUp workspace member read live (DYN-03). `email` is nullable because
+ * the members endpoint may omit it for some users — extraction shape-guards and
+ * coerces a missing/invalid email to null rather than throwing.
+ */
+export type ClickUpMember = {
+  id: number;
+  name: string;
+  email: string | null;
+};
+
+/**
+ * Loose wire shape of GET /list/{id}/field. Every nested field is optional and
+ * loosely typed (mirrors the defensive ClickUpHistoryItem pattern) — extraction
+ * code shape-guards every access, never asserts.
+ */
+export type ClickUpFieldsResponse = {
+  fields?: Array<{
+    id?: unknown;
+    name?: unknown;
+    type_config?: {
+      options?: Array<{
+        id?: unknown;
+        name?: unknown;
+      }>;
+    };
+  }>;
+};
+
+/**
+ * Loose wire shape of GET /team/{id}/member. The member rows nest the user
+ * record under `user`; every field is optional and shape-guarded on read.
+ */
+export type ClickUpMembersResponse = {
+  members?: Array<{
+    user?: {
+      id?: unknown;
+      username?: unknown;
+      email?: unknown;
+    };
+  }>;
+};

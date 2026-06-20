@@ -2,7 +2,11 @@ import { CLIENTE_FIELD_ID } from "../config/clients.js";
 import { createRetryingFetch, type RetryingFetchOpts } from "./retry.js";
 import {
   LINK_LOOM_FIELD_ID,
+  type ClickUpFieldsResponse,
+  type ClickUpMember,
+  type ClickUpMembersResponse,
   type ClickUpTaskResult,
+  type ClienteOption,
   type CreateTaskParams,
   type FetchLike,
   type GetTaskResult,
@@ -17,6 +21,20 @@ const defaultSleep = (ms: number): Promise<void> =>
 export type ClickUpClient = {
   createTask(params: CreateTaskParams): Promise<ClickUpTaskResult>;
   getTask(taskId: string): Promise<GetTaskResult>;
+  /**
+   * Read the live Cliente dropdown options (name + option UUID) from ClickUp
+   * (DYN-01). GETs /list/{listId}/field, finds the field whose id matches
+   * CLIENTE_FIELD_ID, and returns its type_config.options. Throws a typed error
+   * on a non-2xx response (status + body, never the token) or a malformed
+   * payload (missing field / missing options).
+   */
+  getClienteOptions(): Promise<ClienteOption[]>;
+  /**
+   * Read the live ClickUp workspace members (id, name, email) for the team
+   * (DYN-03). GETs /team/{teamId}/member. Shape-guards every nested access;
+   * a missing email coerces to null rather than throwing.
+   */
+  getMembers(): Promise<ClickUpMember[]>;
 };
 
 type CreateTaskBody = {
@@ -55,6 +73,12 @@ type CreateTaskBody = {
 export function createClickUpClient(deps: {
   token: string;
   listId: string;
+  /**
+   * ClickUp workspace/team id, used by the dynamic-config reads (DYN-03) for the
+   * members endpoint. Optional so the create-task path (which doesn't need it)
+   * and existing tests keep working; getMembers() throws clearly if it's absent.
+   */
+  teamId?: string;
   fetch: FetchLike;
   /**
    * Retry knobs for the 429/5xx backoff wrapper (HARD-02). `sleep` defaults to a
@@ -62,7 +86,7 @@ export function createClickUpClient(deps: {
    */
   retry?: Partial<RetryingFetchOpts>;
 }): ClickUpClient {
-  const { token, listId } = deps;
+  const { token, listId, teamId } = deps;
   const fetch = createRetryingFetch(deps.fetch, {
     sleep: deps.retry?.sleep ?? defaultSleep,
     ...(deps.retry?.maxAttempts != null
@@ -163,6 +187,89 @@ export function createClickUpClient(deps: {
         name: json.name,
         ...(status != null ? { status } : {}),
       };
+    },
+
+    async getClienteOptions(): Promise<ClienteOption[]> {
+      const res = await fetch(`${BASE_URL}/list/${listId}/field`, {
+        method: "GET",
+        headers: { Authorization: token },
+      });
+
+      if (!res.ok) {
+        // Surface status + body for diagnosis; the token is never included.
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          `ClickUp getClienteOptions failed — status ${res.status}: ${text}`,
+        );
+      }
+
+      const json = (await res.json()) as ClickUpFieldsResponse;
+      const fields = Array.isArray(json.fields) ? json.fields : [];
+      const clienteField = fields.find((f) => f != null && f.id === CLIENTE_FIELD_ID);
+      if (!clienteField) {
+        throw new Error(
+          `ClickUp getClienteOptions: Cliente field (${CLIENTE_FIELD_ID}) not found in list ${listId}`,
+        );
+      }
+      const rawOptions = clienteField.type_config?.options;
+      if (!Array.isArray(rawOptions)) {
+        throw new Error(
+          "ClickUp getClienteOptions: Cliente field has no options array",
+        );
+      }
+
+      // Shape-guard every option: keep only those with a string id + name.
+      const options: ClienteOption[] = [];
+      for (const opt of rawOptions) {
+        if (
+          opt != null &&
+          typeof opt.id === "string" &&
+          typeof opt.name === "string"
+        ) {
+          options.push({ id: opt.id, name: opt.name });
+        }
+      }
+      return options;
+    },
+
+    async getMembers(): Promise<ClickUpMember[]> {
+      if (!teamId) {
+        throw new Error(
+          "ClickUp getMembers: teamId was not provided to createClickUpClient",
+        );
+      }
+
+      const res = await fetch(`${BASE_URL}/team/${teamId}/member`, {
+        method: "GET",
+        headers: { Authorization: token },
+      });
+
+      if (!res.ok) {
+        // Surface status + body for diagnosis; the token is never included.
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          `ClickUp getMembers failed — status ${res.status}: ${text}`,
+        );
+      }
+
+      const json = (await res.json()) as ClickUpMembersResponse;
+      if (!Array.isArray(json.members)) {
+        throw new Error("ClickUp getMembers: response missing members array");
+      }
+
+      // Shape-guard every member: require a numeric id + string username; a
+      // missing/invalid email coerces to null (never throws on a partial row).
+      const members: ClickUpMember[] = [];
+      for (const row of json.members) {
+        const user = row?.user;
+        if (user == null) continue;
+        if (typeof user.id !== "number" || typeof user.username !== "string") {
+          continue;
+        }
+        const email = typeof user.email === "string" ? user.email : null;
+        members.push({ id: user.id, name: user.username, email });
+      }
+      return members;
     },
   };
 }

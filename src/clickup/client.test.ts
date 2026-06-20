@@ -321,3 +321,240 @@ describe("createClickUpClient — HARD-02 retry wiring", () => {
     expect(delays).toHaveLength(0);
   });
 });
+
+const TEAM_ID = "90131720021";
+
+/** A fields payload: the Cliente dropdown + an unrelated text field to ignore. */
+function fieldsPayload(): unknown {
+  return {
+    fields: [
+      {
+        id: "some-text-field",
+        name: "Notas",
+        type: "text",
+      },
+      {
+        id: CLIENTE_FIELD_ID,
+        name: "Cliente",
+        type: "drop_down",
+        type_config: {
+          options: [
+            { id: "uuid-felipe", name: "Felipe Vergara", orderindex: 0 },
+            { id: "uuid-children", name: "Children Chic", orderindex: 1 },
+            { id: "uuid-interno", name: "Interno", orderindex: 2 },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+describe("createClickUpClient.getClienteOptions", () => {
+  function okFields(json: unknown): ReturnType<typeof vi.fn> {
+    return vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => json,
+      text: async () => JSON.stringify(json),
+    }));
+  }
+
+  it("GETs /list/{listId}/field with the raw token and extracts the Cliente options", async () => {
+    const fetch = okFields(fieldsPayload());
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    const opts = await client.getClienteOptions();
+
+    const [url, init] = fetch.mock.calls[0] as [string, { method?: string; headers: Record<string, string> }];
+    expect(url).toBe(`https://api.clickup.com/api/v2/list/${LIST_ID}/field`);
+    expect(init.headers.Authorization).toBe(TOKEN);
+    expect(opts).toEqual([
+      { id: "uuid-felipe", name: "Felipe Vergara" },
+      { id: "uuid-children", name: "Children Chic" },
+      { id: "uuid-interno", name: "Interno" },
+    ]);
+  });
+
+  it("ignores fields other than the Cliente field", async () => {
+    const fetch = okFields(fieldsPayload());
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    const opts = await client.getClienteOptions();
+    expect(opts.every((o) => typeof o.id === "string" && typeof o.name === "string")).toBe(true);
+    expect(opts).toHaveLength(3);
+  });
+
+  it("routes through the retry fetch (429 then 200 succeeds)", async () => {
+    const { delays, retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(429))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => fieldsPayload(),
+        text: async () => "",
+      });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    const opts = await client.getClienteOptions();
+    expect(opts).toHaveLength(3);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(delays).toHaveLength(1);
+  });
+
+  it("throws on a non-2xx response with status + body, without leaking the token", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+      text: async () => "Team not authorized",
+    }));
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    await expect(client.getClienteOptions()).rejects.toThrow(/401/);
+    await expect(client.getClienteOptions()).rejects.toThrow(/not authorized/);
+    await expect(client.getClienteOptions()).rejects.not.toThrow(/pk_secret_token/);
+  });
+
+  it("throws a clear error when the Cliente field is absent from the payload", async () => {
+    const fetch = okFields({ fields: [{ id: "unrelated", name: "x" }] });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    await expect(client.getClienteOptions()).rejects.toThrow(/Cliente/);
+  });
+
+  it("throws a clear error when the options array is missing", async () => {
+    const fetch = okFields({ fields: [{ id: CLIENTE_FIELD_ID, name: "Cliente" }] });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    await expect(client.getClienteOptions()).rejects.toThrow(/options/);
+  });
+});
+
+describe("createClickUpClient.getMembers", () => {
+  function okMembers(json: unknown): ReturnType<typeof vi.fn> {
+    return vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => json,
+      text: async () => JSON.stringify(json),
+    }));
+  }
+
+  const membersPayload = {
+    members: [
+      { user: { id: 216158839, username: "Miguel Pacheco", email: "miguel@arianna.com" } },
+      { user: { id: 118065209, username: "Veronica Romero", email: "VERO@arianna.com" } },
+      { user: { id: 999, username: "Sin Email" } },
+    ],
+  };
+
+  it("GETs /team/{teamId}/member and extracts id/name/email", async () => {
+    const fetch = okMembers(membersPayload);
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    const members = await client.getMembers();
+
+    const [url, init] = fetch.mock.calls[0] as [string, { method?: string; headers: Record<string, string> }];
+    expect(url).toBe(`https://api.clickup.com/api/v2/team/${TEAM_ID}/member`);
+    expect(init.headers.Authorization).toBe(TOKEN);
+    expect(members).toEqual([
+      { id: 216158839, name: "Miguel Pacheco", email: "miguel@arianna.com" },
+      { id: 118065209, name: "Veronica Romero", email: "VERO@arianna.com" },
+      { id: 999, name: "Sin Email", email: null },
+    ]);
+  });
+
+  it("coerces a missing email to null and never throws on a partial member", async () => {
+    const fetch = okMembers({ members: [{ user: { id: 5, username: "X" } }] });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    const members = await client.getMembers();
+    expect(members).toEqual([{ id: 5, name: "X", email: null }]);
+  });
+
+  it("routes through the retry fetch (429 then 200)", async () => {
+    const { delays, retry } = fakeRetry();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(429))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => membersPayload,
+        text: async () => "",
+      });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+      retry,
+    });
+    await client.getMembers();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(delays).toHaveLength(1);
+  });
+
+  it("throws on a non-2xx response with status + body, without leaking the token", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      json: async () => ({}),
+      text: async () => "Forbidden",
+    }));
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    await expect(client.getMembers()).rejects.toThrow(/403/);
+    await expect(client.getMembers()).rejects.not.toThrow(/pk_secret_token/);
+  });
+
+  it("throws a clear error when the members array is missing", async () => {
+    const fetch = okMembers({ notMembers: [] });
+    const client = createClickUpClient({
+      token: TOKEN,
+      listId: LIST_ID,
+      teamId: TEAM_ID,
+      fetch: fetch as unknown as FetchLike,
+    });
+    await expect(client.getMembers()).rejects.toThrow(/members/);
+  });
+});
